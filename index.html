@@ -66,7 +66,7 @@ function renderAccount(session){
  if(signedIn&&dialog.open)dialog.close();
 }
 function showSignIn(){status.textContent=ready?'':'Connecting to your account…';if(!dialog.open)dialog.showModal();}
-async function loadUser(user){renderAccount({user});document.getElementById('password').value='';document.getElementById('homeWorkspace').scrollIntoView({behavior:'smooth',block:'start'});}
+async function loadUser(user){renderAccount({user});document.getElementById('homeAccount').open=false;document.getElementById('password').value='';document.getElementById('homeWorkspace').scrollIntoView({behavior:'smooth',block:'start'});}
 document.getElementById('homeSignIn').onclick=showSignIn;
 document.getElementById('closeHomeAuth').onclick=()=>dialog.close();
 document.addEventListener('click',event=>{const link=event.target.closest('a[href="finance/index.html"]');if(link&&!signedIn){event.preventDefault();showSignIn();}});
@@ -109,7 +109,7 @@ resetButton.onclick=async()=>{
 };
 document.getElementById('homeSignOut').onclick=async()=>{
  const button=document.getElementById('homeSignOut');button.disabled=true;
- try{const {error}=await supabase.auth.signOut();if(error)throw error;renderAccount(null);document.getElementById('homeAccount').open=false;}
+ try{const {error}=await supabase.auth.signOut();if(error&&error.name!=='AuthSessionMissingError'&&error.message!=='Auth session missing!')throw error;renderAccount(null);document.getElementById('homeAccount').open=false;}
  catch(error){showSignIn();status.textContent='Could not sign out: '+error.message;}finally{button.disabled=false;}
 };
 supabase.auth.onAuthStateChange((event,session)=>renderAccount(session));

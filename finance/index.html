@@ -346,7 +346,7 @@ if(!configured){
      const {data,error}=await supabase.auth.signInWithPassword({email:emailInput.value.trim(),password:passwordInput.value});
      if(error)throw error;
      if(data.user)location.assign(new URL('../',location.href).href);
-   }catch(e){status.textContent=e.message==='Invalid login credentials'?'Incorrect email or password. If you just registered, confirm your email first.':e.message;}
+   }catch(e){status.textContent=e.message==='Invalid login credentials'?'Email and password were not accepted. Use your signup email, or choose Send password reset.':e.message;}
    finally{setBusy(false);}
  };
  registerButton.onclick=async()=>{
@@ -360,24 +360,9 @@ if(!configured){
    }catch(e){status.textContent='Account creation failed: '+e.message;}
    finally{setBusy(false);}
  };
- resetButton.onclick=async()=>{
-   if(!validEmail()){status.textContent='Enter a valid email address first.';emailInput.focus();return;}
-   setBusy(true);status.textContent='Sending reset email…';
-   try{
-     const {error}=await supabase.auth.resetPasswordForEmail(emailInput.value.trim(),{redirectTo:location.origin+location.pathname});
-     if(error)throw error;
-     status.textContent='If that account exists, a password reset email will arrive. Check your spam folder too.';
-   }catch(e){status.textContent='Password reset failed: '+e.message;}
-   finally{setBusy(false);}
- };
+ resetButton.onclick=()=>location.assign('https://veltrix-finance.onrender.com/?recover=1');
  supabase.auth.onAuthStateChange((event,session)=>{
-   if(event==='PASSWORD_RECOVERY')setTimeout(async()=>{
-     const newPassword=prompt('Enter a new password (at least 8 characters):');
-     if(newPassword===null)return;
-     if(newPassword.length<8){status.textContent='New password must be at least 8 characters.';return;}
-     const {error}=await supabase.auth.updateUser({password:newPassword});
-     status.textContent=error?'Password update failed: '+error.message:'Password updated. You can now sign in.';
-   },0);
+   if(event==='PASSWORD_RECOVERY')location.replace(new URL('../?update-password=1',location.href).href);
  });
  supabase.auth.onAuthStateChange((event,session)=>{
    // Defer DB access outside auth callback.

@@ -30,7 +30,7 @@ const KEY='veltrix-finance-prototype-v1',cats=['Housing','Food','Transport','Uti
 // 2.0: additive enhancements. Existing local data remains under the original storage key.
 state.recurring=Array.isArray(state.recurring)?state.recurring:[];
 const recCats=document.getElementById('recurringCategory');recCats.innerHTML=cats.map(c=>`<option>${esc(c)}</option>`).join('');
-var todayLocal=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
+function todayLocal(){const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}
 document.querySelector('#recurringForm [name=next]').value=todayLocal();
 const advanceDate=(str,frequency)=>{const [y,m,d]=str.split('-').map(Number);const x=new Date(y,m-1,d,12);if(frequency==='weekly')x.setDate(x.getDate()+7);else{const day=x.getDate();x.setDate(1);x.setMonth(x.getMonth()+1);const last=new Date(x.getFullYear(),x.getMonth()+1,0).getDate();x.setDate(Math.min(day,last))}return [x.getFullYear(),String(x.getMonth()+1).padStart(2,'0'),String(x.getDate()).padStart(2,'0')].join('-')};
 document.getElementById('recurringForm').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);const a=Number(f.get('amount'));if(!Number.isFinite(a)||a<=0)return;state.recurring.push({id:crypto.randomUUID(),description:String(f.get('description')).trim(),amount:a,type:f.get('type'),category:f.get('category'),frequency:f.get('frequency'),next:f.get('next')});save();e.target.reset();e.target.querySelector('[name=next]').value=todayLocal();notify('Schedule created')};

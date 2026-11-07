@@ -1,0 +1,6 @@
+{
+  "name": "veydravo-finance",
+  "private": true,
+  "scripts": {"test": "node tests/browser-fallbacks.cjs && node tests/account-flows.cjs", "test:browsers": "node tests/browser-compatibility.cjs"},
+  "devDependencies": {"playwright": "1.56.1"}
+}

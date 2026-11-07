@@ -1,8 +1,13 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>VEYDRAVO FINANCE | Your Money, In Focus</title><style>
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/><title>VEYDRAVO FINANCE | Your Money, In Focus</title><style>
 :root{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#f6f8ff;background:#080b12}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 75% -10%,#233e87 0%,transparent 36%),#080b12;min-height:100vh}button,input,select{font:inherit}button{cursor:pointer}.app{max-width:1280px;margin:auto;display:grid;grid-template-columns:245px 1fr;min-height:100vh}.side{border-right:1px solid #273047;background:#0c1019b8;padding:30px 20px}.brand{display:flex;align-items:center;gap:12px;font-size:22px;font-weight:800;letter-spacing:4px;margin-bottom:7px}.emblem{display:grid;place-items:center;width:45px;height:45px;background:linear-gradient(140deg,#fff,#7185a9 43%,#426bff 48%,#182540);clip-path:polygon(0 0,25% 0,50% 50%,75% 0,100% 0,52% 100%,44% 100%);filter:drop-shadow(0 0 9px #426bff)}.tag{color:#8392b0;font-size:10px;letter-spacing:2px;margin:0 0 45px 3px}.nav{display:flex;flex-direction:column;gap:10px}.nav button{background:none;border:1px solid transparent;color:#a9b5ce;text-align:left;padding:14px;border-radius:11px}.nav button.active,.nav button:hover{background:#18294b;border-color:#426bff;color:white}.sidefoot{color:#71809e;font-size:12px;margin-top:70px;line-height:1.8}.main{padding:32px 35px 70px;min-width:0}.top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.eyebrow{font-size:11px;color:#90a9ff;letter-spacing:3px;font-weight:750}.top h1{font-size:clamp(28px,4vw,43px);margin:8px 0 10px;letter-spacing:-1px}.sub{color:#a2afc8;margin:0 0 30px}.primary{background:linear-gradient(120deg,#426bff,#3053c6);border:1px solid #6688ff;color:white;padding:12px 19px;border-radius:11px;font-weight:700;box-shadow:0 8px 30px #426bff30}.secondary{background:#131c2c;border:1px solid #354664;color:#d9e4ff;padding:11px 17px;border-radius:10px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin:22px 0}.card,.panel{background:linear-gradient(155deg,#151d2e,#0e1420);border:1px solid #2b3954;border-radius:17px;padding:22px;box-shadow:0 12px 35px #0002}.card small{color:#a4b2cb;font-size:12px}.amount{font-size:clamp(24px,3vw,35px);font-weight:800;letter-spacing:-1px;margin:14px 0 6px}.hint{color:#8191af;font-size:12px}.blue{color:#86a3ff}.green{color:#74dfbc}.pink{color:#ff98ac}.two{display:grid;grid-template-columns:1.25fr 1fr;gap:17px;margin-top:17px}.panel h2{font-size:18px;margin:0 0 19px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;border-bottom:1px solid #273147}.row:last-child{border:0}.muted{color:#91a0bb}.progress{height:8px;background:#253149;border-radius:12px;overflow:hidden;margin:10px 0}.bar{height:100%;background:linear-gradient(90deg,#426bff,#8eafff);border-radius:12px}.section{display:none}.section.active{display:block}.field{display:grid;gap:7px;margin:13px 0;color:#bac6dd;font-size:13px}.field input,.field select{background:#0c1423;border:1px solid #3b4b69;color:#fff;border-radius:9px;padding:13px;width:100%;min-width:0}.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 15px}.tablewrap{overflow:auto}.tx{width:100%;border-collapse:collapse;min-width:560px}.tx th{text-align:left;color:#8da0c4;font-size:12px;font-weight:600;padding:12px;border-bottom:1px solid #35415b}.tx td{padding:15px 12px;border-bottom:1px solid #222e43}.tx button{background:none;color:#ff9cad;border:0}.empty{color:#9caac4;padding:20px 0}.goal{margin-bottom:22px}.goalhead{display:flex;justify-content:space-between;gap:10px}.disclaimer{font-size:12px;color:#8391aa;line-height:1.6;margin-top:24px}.toast{position:fixed;bottom:20px;right:20px;background:#1b335c;color:white;border:1px solid #5474ad;padding:13px;border-radius:10px;display:none}.mobnav{display:none}@media(max-width:850px){.app{display:block}.side{display:none}.main{padding:24px 17px 100px}.stats,.two{grid-template-columns:1fr}.mobnav{display:flex;position:fixed;bottom:0;left:0;right:0;background:#0b111ff5;border-top:1px solid #2b3954;padding:8px 4px;justify-content:space-around;z-index:10}.mobnav button{border:0;background:transparent;color:#aab8d5;font-size:12px;padding:10px 5px}.mobnav button.active{color:#85a2ff}.formgrid{grid-template-columns:1fr}.top{align-items:start}} 
 /* VEYDRAVO visual refinement */
 :root{--vx:#426bff} .version{display:inline-block;border:1px solid #426bff77;border-radius:99px;padding:5px 11px;color:#a8baff;font-size:11px;letter-spacing:2px;margin-top:10px}.upgrade-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.mini-chart{display:flex;align-items:end;gap:10px;height:165px;padding:12px 4px 25px;border-bottom:1px solid #39445c}.mini-chart>div{flex:1;min-width:0;position:relative;display:flex;gap:3px;align-items:end;height:100%}.mini-chart i{display:block;flex:1;min-width:3px;border-radius:5px 5px 0 0;background:#426bff;min-height:2px}.mini-chart i.out{background:#e278a5}.mini-chart small{position:absolute;top:calc(100% + 7px);left:0;width:100%;text-align:center;color:#9daac4;font-size:10px}.insight{background:#131d30;border:1px solid #273857;border-radius:14px;padding:16px;margin:9px 0;line-height:1.5}.insight strong{color:#a9bbff}.fineprint{color:#a0abc2;font-size:12px;line-height:1.6}.recurring-card{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #2b3550;padding:13px 0}.recurring-card button{font-size:12px}.app input:focus,.app select:focus{outline:2px solid #426bff;outline-offset:2px}@media(max-width:600px){.mini-chart{gap:5px}.recurring-card{flex-wrap:wrap}}
+
+/* Browser and small-screen input fallbacks. */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}button,a,input,select{touch-action:manipulation}input,select,textarea{font-size:16px;min-height:44px}input[type="date"]{min-width:0;max-width:100%;color-scheme:dark}button{min-height:44px}img{max-width:100%}:focus-visible{outline:2px solid #90a9ff;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+.field input,.field select{font-size:16px;min-height:48px}.mobnav{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}.account-panel{max-width:calc(100vw - 32px)}.table-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
 </style><style>
 body:not(.cloud-ready) .app,body:not(.cloud-ready) .mobnav{visibility:hidden;pointer-events:none}
 #accountGate{position:fixed;z-index:9999;inset:0;background:radial-gradient(ellipse at 70% 0%,#1d3166,#080b12 58%);display:grid;place-items:center;padding:18px;overflow:auto}
@@ -78,7 +83,7 @@ body.cloud-ready #cloudTools{display:flex}
 .planner-value{font-size:clamp(30px,5vw,44px);font-weight:800;letter-spacing:-1px;margin:10px 0;overflow-wrap:anywhere}.planner-daily{font-size:18px;font-weight:650;line-height:1.6}.planner-status{font-size:13px;color:#ffb5c5;line-height:1.6}.planner-status:empty{display:none}
 .planner-warning{border:1px solid #8a634b;background:#34251f;color:#ffd2b0;padding:13px;border-radius:10px;line-height:1.6;margin:12px 0;font-size:13px}.planner-bills{margin-top:20px}.planner-bills>.secondary{margin-top:16px}.planner-summary-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.planner-summary-top>div{min-width:0}.planner-date{font-size:12px;color:#a0b1d1;white-space:normal}
 @media(max-width:850px){.planner-layout{grid-template-columns:minmax(0,1fr)}.planner-daily{font-size:16px}}
-</style><style>#cloudTools{justify-content:space-between}.homepage-link{color:#b6c9ff;text-decoration:none;display:inline-flex;align-items:center;min-height:44px;padding:8px 0;font-size:14px}.homepage-link:hover{text-decoration:underline}</style><style>#saveConflict[hidden]{display:none}#saveConflict p{line-height:1.6;color:#d6def0}</style><style>.monthly-day-field{max-width:160px;margin:10px 0 0}.monthly-day-field input{padding:8px 10px;min-height:44px}</style><style>#workspaceRecovery[hidden],#saveProblem[hidden]{display:none}#workspaceRecovery{border-top:1px solid #354664;margin-top:18px}#workspaceRecovery input[hidden]{display:none}</style></head><body>
+</style><style>#cloudTools{justify-content:space-between}.homepage-link{color:#b6c9ff;text-decoration:none;display:inline-flex;align-items:center;min-height:44px;padding:8px 0;font-size:14px}.homepage-link:hover{text-decoration:underline}</style><style>#saveConflict[hidden]{display:none}#saveConflict p{line-height:1.6;color:#d6def0}</style><style>.monthly-day-field{max-width:160px;margin:10px 0 0}.monthly-day-field input{padding:8px 10px;min-height:44px}</style><style>#workspaceRecovery[hidden],#saveProblem[hidden]{display:none}#workspaceRecovery{border-top:1px solid #354664;margin-top:18px}#workspaceRecovery input[hidden]{display:none}</style><script defer src="../assets/browser-support.js"></script><script defer src="../vendor/supabase-2.57.0.js"></script><script defer src="../assets/account-finance.js"></script></head><body>
 <div id="accountGate"><div class="auth-card"><div style="color:#91aaff;letter-spacing:3px;font-size:12px">VEYDRAVO / FINANCE</div><h1>Your finances. Your account.</h1><p>Secure sign-in and private cloud storage. Subscription billing is not enabled in this starter.</p><form id="authForm"><input autocomplete="email" id="email" placeholder="Email address" required="" type="email"/><input autocomplete="current-password" id="password" minlength="8" placeholder="Password (8+ characters)" required="" type="password"/><button type="submit">SIGN IN</button></form><button class="ghost" id="registerBtn" type="button">CREATE ACCOUNT</button><button class="ghost" id="resetBtn" type="button">SEND PASSWORD RESET</button><p id="authStatus" role="status"></p><div id="workspaceRecovery" hidden><p>Your saved data is preserved. Download it before restoring a valid backup or opening the last valid cloud version.</p><button id="downloadRecoveryData" type="button">Download data for recovery</button><button id="chooseRecoveryBackup" type="button">Restore a valid backup</button><input id="recoveryBackupFile" type="file" accept=".json,application/json" hidden><button id="useCloudAfterDraftError" type="button">Use the saved cloud version</button><p id="workspaceRecoveryStatus" role="status"></p></div><small>Your account is protected by Supabase authentication. Use a unique password; do not enter bank login credentials.</small></div></div>
 <div class="app"><aside class="side"><div class="brand"><span aria-hidden="true" class="emblem"></span>VEYDRAVO</div><div class="tag">MAKE LIFE WORK BETTER.</div><nav class="nav" id="nav"></nav><div class="sidefoot">FINANCE / PERSONAL DASHBOARD<br/>PERSONAL FINANCE WORKSPACE</div></aside><main class="main"><div id="cloudTools"><a class="homepage-link" href="../">← Homepage</a><details class="account-menu" id="accountMenu"><summary><span class="account-identity"><span class="avatar avatar-small" id="accountAvatar" aria-hidden="true">V</span><span>Account</span></span><span class="account-chevron" aria-hidden="true">⌄</span></summary><div class="account-panel"><p id="syncStatus" role="status" aria-live="polite">Loading…</p><button class="profile-menu-link" type="button" onclick="switchTab('settings');document.getElementById('profilePanel').scrollIntoView({behavior:'smooth',block:'start'})">Profile &amp; photo</button><button id="signOutBtn" type="button">Sign out</button></div></details></div><div class="panel" id="saveConflict" role="alert" hidden style="margin:0 0 18px;border-color:#a86b4c"><h2>Newer changes are already saved</h2><p>Your edits on this device have not overwritten them. Download your unsaved edits before loading the latest cloud version.</p><div class="quick-actions"><button class="secondary" id="downloadConflictDraft" type="button">Download my unsaved edits</button><button class="primary" id="loadLatestWorkspace" type="button">Load latest saved version</button></div></div><div class="panel" id="saveProblem" role="alert" hidden style="margin-bottom:18px"><h2>Changes need attention before saving</h2><p id="saveProblemMessage"></p><button id="downloadBlockedSave" class="secondary" type="button">Download my current entries</button></div><div class="top"><div><div class="eyebrow">VEYDRAVO / FINANCE</div><div class="version">PERSONAL FINANCE DASHBOARD</div><h1 id="heading">Financial overview</h1><p class="sub" id="subtitle">Your money. Your goals. Your control.</p></div></div>
 <section class="section active" id="overview"><div class="panel payday-overview" id="paydayOverview"></div><div class="panel quick-start"><h2>Make it yours</h2><p class="muted">Start with your income and expenses. Every entry updates your totals, budgets, and insights.</p><div class="quick-actions"><button class="primary" type="button" onclick="beginTransaction('Income')">+ Add income</button><button class="secondary" type="button" onclick="beginTransaction('Expense')">+ Add expense</button><button class="secondary" type="button" onclick="switchTab('budgets')">Set a budget</button><button class="secondary" type="button" onclick="switchTab('goals')">Create a goal</button></div></div><div class="stats"><div class="card"><small>Total income</small><div class="amount green" id="incomeTotal">$0.00</div><div class="hint">All recorded transactions</div></div><div class="card"><small>Total expenses</small><div class="amount pink" id="expenseTotal">$0.00</div><div class="hint">All recorded transactions</div></div><div class="card"><small>Net cash flow</small><div class="amount blue" id="balanceTotal">$0.00</div><div class="hint">Income minus expenses</div></div></div><div class="two"><div class="panel"><h2>Spending by category</h2><div class="empty" id="spendingSummary">Add an expense to see your breakdown.</div></div><div class="panel"><h2>Goals at a glance</h2><div class="empty" id="goalSummary">Create a savings goal to track progress.</div></div></div><div class="panel" style="margin-top:17px"><h2>Recent activity</h2><div class="empty" id="recent">Your transactions will appear here.</div></div></section>
@@ -377,197 +382,4 @@ document.getElementById('paydayForm').onsubmit=e=>{
  state.payday={balance:balance/100,everydayReserve:reserve/100,buffer:buffer/100,nextPayday:next,balanceDate:todayLocal(),includeRecurring:f.get('includeRecurring')==='on',knownTransactionIds:state.transactions.filter(t=>plannerDay(t.date)!==null&&t.date<=todayLocal()).map(t=>t.id)};
  save();status.textContent='Payday plan updated.';notify('Payday plan saved');
 };
-</script><script type="module">
-import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.57.0';
-const SUPABASE_URL='https://podzzorjsvhsdiqistpd.supabase.co';
-const SUPABASE_ANON_KEY='sb_publishable_8_E2DXr76Qq-NaOrVwc7_w_vSFngK3E';
-const status=document.getElementById('authStatus');
-const syncStatus=document.getElementById('syncStatus');
-const configured=SUPABASE_URL.startsWith('https://')&&!SUPABASE_URL.includes('REPLACE_')&&!SUPABASE_ANON_KEY.includes('REPLACE_');
-if(!configured){
-  status.textContent='Setup required: configure your Supabase project URL and publishable key.';
-}else{
- const supabase=createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}});
- let currentUser=null, dirty=false, saveTimer=null, generation=0, inFlight=null, loadingUserId=null, baseRevision=null, saveConflict=false, recoveryWorkspace=null, saveBlocked=false;
- const empty=()=>({transactions:[],budgets:{},goals:[],recurring:[]});
- const safeState=v=>{try{validateFinanceBackup(v);return true}catch{return false}};
- // Each tab keeps its own recovery draft so another tab cannot erase it.
- let draftId;try{draftId=sessionStorage.getItem('veydravo-draft-id');if(!draftId){draftId=crypto.randomUUID();sessionStorage.setItem('veydravo-draft-id',draftId)}}catch{draftId=crypto.randomUUID()}
- const pendingKey=uid=>'veltrix-pending:'+uid+':'+draftId;
- const legacyPendingKey=uid=>'veltrix-pending:'+uid;
- const showError=e=>{syncStatus.textContent='Not saved to cloud. '+(e?.message||'Please retry when online.');};
- function rememberPending(){try{localStorage.setItem(pendingKey(currentUser.id),JSON.stringify({format:'veydravo-draft-v1',baseRevision,data:state}));return true}catch(e){showError(new Error('Keep this page open until cloud saving finishes.'));return false}}
- function blockConflictingSave(){
-  saveConflict=true;dirty=true;clearTimeout(saveTimer);const remembered=rememberPending();
-  document.getElementById('saveConflict').hidden=false;
-  syncStatus.textContent=remembered?'Saving paused: a newer version exists. Your edits are kept on this device.':'Saving paused: a newer version exists and a local copy could not be saved. Keep this page open and download your edits.';
- }
- async function flush(){
-   if(inFlight){await inFlight;if(dirty)return flush();return !dirty}
-   if(saveConflict||saveBlocked)return false;
-   if(!currentUser||!dirty)return true;
-   const uid=currentUser.id,gen=generation,expectedRevision=baseRevision;let payload;
-   try{payload=validateFinanceBackup(state)}catch(error){
-    saveBlocked=true;dirty=true;rememberPending();showError(error);
-    document.getElementById('saveProblem').hidden=false;document.getElementById('saveProblemMessage').textContent=error.message;return false;
-   }
-   dirty=false;
-   syncStatus.textContent='Saving…';
-   inFlight=(async()=>{
-    try{
-     const request=expectedRevision===null
-      ?supabase.from('finance_data').insert({user_id:uid,data:payload,revision:0}).select('revision').maybeSingle()
-      :supabase.from('finance_data').update({data:payload,revision:expectedRevision+1}).eq('user_id',uid).eq('revision',expectedRevision).select('revision').maybeSingle();
-     const {data:saved,error}=await request;
-     if(gen!==generation)return false;
-     if(error){if(['23505','40001'].includes(error.code)){blockConflictingSave();return false}throw error}
-     if(!saved||!Number.isInteger(saved.revision)){blockConflictingSave();return false}
-     baseRevision=saved.revision;
-     if(dirty)rememberPending();
-     if(!dirty){try{localStorage.removeItem(pendingKey(uid))}catch{}syncStatus.textContent='All changes saved';}
-     return true;
-    }catch(e){if(gen===generation){dirty=true;showError(e)}return false;}
-   })();
-   const ok=await inFlight;inFlight=null;
-   if(dirty&&!saveConflict&&!saveBlocked&&gen===generation){clearTimeout(saveTimer);saveTimer=setTimeout(flush,ok?0:3000)}
-   return ok;
- }
- function queueSave(){if(!currentUser)return;dirty=true;saveBlocked=false;document.getElementById('saveProblem').hidden=true;const remembered=rememberPending();if(saveConflict){blockConflictingSave();return;}syncStatus.textContent=remembered?'Changes waiting to save…':'Saving to cloud; local recovery is unavailable. Keep this page open.';clearTimeout(saveTimer);saveTimer=setTimeout(flush,550);}
- save=function(){queueSave();render();render2();};
- async function loadUser(user,{discardPending=false}={}){
-   if(loadingUserId===user.id)return;loadingUserId=user.id;
-   const gen=++generation;clearTimeout(saveTimer);currentUser=user;dirty=false;saveConflict=false;saveBlocked=false;recoveryWorkspace=null;document.getElementById('workspaceRecovery').hidden=true;document.getElementById('saveProblem').hidden=true;document.getElementById('saveConflict').hidden=true;
-   document.body.classList.remove('cloud-ready');status.textContent='Loading your private workspace…';
-   try{
-     const {data,error}=await supabase.from('finance_data').select('data,revision').eq('user_id',user.id).maybeSingle();
-     if(gen!==generation)return;if(error)throw error;
-     if(data?.data){
-      try{validateFinanceBackup(data.data)}catch(error){
-       recoveryWorkspace={user,data:data.data,revision:data.revision};document.getElementById('workspaceRecovery').hidden=false;
-       throw new Error('Your saved workspace needs recovery: '+error.message+' Download a copy below, then restore a valid backup. The saved data has not been changed.');
-      }
-     }
-     if(data&&!Number.isInteger(data.revision))throw new Error('Please refresh this page to load the latest saving support.');
-     baseRevision=data?data.revision:null;
-     state=data?.data?validateFinanceBackup(data.data):empty();
-     let pending=null,pendingSource=pendingKey(user.id),rawPending=null,pendingReadError=null;try{
-      let raw=localStorage.getItem(pendingSource);
-      if(raw===null){pendingSource=legacyPendingKey(user.id);raw=localStorage.getItem(pendingSource)}
-      rawPending=raw;pending=JSON.parse(raw);
-     }catch(error){pendingReadError=error}
-     if(pendingReadError&&!discardPending){recoveryWorkspace={user,data:rawPending,revision:baseRevision,draftOnly:true};document.getElementById('workspaceRecovery').hidden=false;throw new Error('An unreadable local draft needs recovery. Download it below before loading the saved cloud version.');}
-     const versioned=pending?.format==='veydravo-draft-v1',draft=versioned?pending.data:pending;
-     if(discardPending){try{localStorage.removeItem(pendingSource)}catch{}}
-     else if(safeState(draft)&&confirm('Restore unsaved changes from this device? Cancel discards that draft and loads the cloud version.')){
-      state=validateFinanceBackup(draft);dirty=true;
-      if(!versioned||pending.baseRevision!==baseRevision){baseRevision=versioned?pending.baseRevision:-1;blockConflictingSave();}
-     }else if(pending){
-      if(!safeState(draft)&&!discardPending){
-       recoveryWorkspace={user,data:draft,revision:baseRevision,draftOnly:true};document.getElementById('workspaceRecovery').hidden=false;
-       throw new Error('An unsaved draft needs recovery. Download it below before choosing to use the saved cloud version.');
-      }
-      try{localStorage.removeItem(pendingSource)}catch{}
-     }
-     cancelTransactionEdit();render();render2();switchTab('overview');document.body.classList.add('cloud-ready');syncStatus.textContent=saveConflict?'Saving paused: newer cloud changes need review.':'All changes saved';status.textContent='';if(dirty&&!saveConflict)queueSave();
-   }catch(e){if(gen===generation){status.textContent='Could not load your cloud data: '+e.message;currentUser=null;}}
-   finally{if(loadingUserId===user.id)loadingUserId=null;}
- }
- async function logout(){
-   clearTimeout(saveTimer);const button=document.getElementById('signOutBtn');button.disabled=true;
-   try{
-    if((dirty||inFlight)&&!await flush()){showError(new Error('Please wait for your changes to save before signing out.'));return;}
-    if(dirty&&!await flush())return;
-    const {error}=await supabase.auth.signOut();if(error){showError(error);return;}
-    generation++;currentUser=null;baseRevision=null;saveConflict=false;document.getElementById('saveConflict').hidden=true;state=empty();cancelTransactionEdit();render();render2();document.body.classList.remove('cloud-ready');location.assign(new URL('../',location.href).href);
-   }finally{button.disabled=false;}
- }
- document.getElementById('downloadConflictDraft').onclick=()=>{
-  const url=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'})),link=document.createElement('a');
-  link.href=url;link.download='VEYDRAVO-unsaved-edits.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
- };
- document.getElementById('loadLatestWorkspace').onclick=async()=>{
-  if(!currentUser)return;
-  if(!confirm('Load the latest cloud version and discard unsaved edits on this device? Download them first if you want to keep a copy.'))return;
-  const button=document.getElementById('loadLatestWorkspace');button.disabled=true;
-  try{if(inFlight)await inFlight;await loadUser(currentUser,{discardPending:true});}finally{button.disabled=false}
- };
- document.getElementById('downloadBlockedSave').onclick=()=>downloadWorkspace(state,'VEYDRAVO-unsaved-workspace.json');
- document.getElementById('downloadRecoveryData').onclick=()=>{if(recoveryWorkspace)downloadWorkspace(recoveryWorkspace.data,'VEYDRAVO-workspace-recovery.json')};
- document.getElementById('chooseRecoveryBackup').onclick=()=>document.getElementById('recoveryBackupFile').click();
- document.getElementById('useCloudAfterDraftError').onclick=async()=>{
-  const recovery=recoveryWorkspace,message=document.getElementById('workspaceRecoveryStatus');
-  if(!recovery?.draftOnly){message.textContent='The saved cloud data needs a valid backup. Download it first, then choose Restore a valid backup.';return}
-  if(!confirm('Discard the invalid local draft and load the last saved cloud version? Download a copy first if you want to keep it.'))return;
-  await loadUser(recovery.user,{discardPending:true});
- };
- document.getElementById('recoveryBackupFile').onchange=async event=>{
-  const input=event.target,file=input.files?.[0],recovery=recoveryWorkspace,message=document.getElementById('workspaceRecoveryStatus');
-  if(!file||!recovery)return;
-  try{
-   if(file.size>10*1024*1024)throw new Error('Choose a backup file smaller than 10 MB.');
-   const candidate=validateFinanceBackup(JSON.parse(await file.text()));
-   if(recoveryWorkspace!==recovery)throw new Error('The workspace changed. Choose the backup again.');
-   const {data:auth,error:authError}=await supabase.auth.getUser();if(authError||auth.user?.id!==recovery.user.id)throw new Error('Sign in again before restoring this workspace.');
-   if(!confirm('Replace the saved workspace with this valid backup? Download the recovery copy first.'))return;
-   const request=recovery.revision===null
-    ?supabase.from('finance_data').insert({user_id:recovery.user.id,data:candidate,revision:0}).select('revision').maybeSingle()
-    :supabase.from('finance_data').update({data:candidate,revision:recovery.revision+1}).eq('user_id',recovery.user.id).eq('revision',recovery.revision).select('revision').maybeSingle();
-   const {data:saved,error}=await request;if(error)throw error;if(!saved)throw new Error('Newer changes were saved elsewhere. Reload before restoring.');
-   await loadUser(recovery.user,{discardPending:true});
-  }catch(error){message.textContent='Recovery did not finish: '+(error instanceof SyntaxError?'The backup is not valid JSON.':error.message)}
-  finally{input.value=''}
- };
- window.addEventListener('online',()=>{if(dirty)flush()});
- window.addEventListener('beforeunload',e=>{if(dirty||inFlight){e.preventDefault();e.returnValue='';}});
- document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&dirty)flush()});
- document.getElementById('signOutBtn').onclick=logout;
- const emailInput=document.getElementById('email');
- const passwordInput=document.getElementById('password');
- const form=document.getElementById('authForm');
- const signInButton=form.querySelector('button[type="submit"]');
- const registerButton=document.getElementById('registerBtn');
- const resetButton=document.getElementById('resetBtn');
- const validEmail=()=>emailInput.value.trim()&&emailInput.checkValidity();
- const validCredentials=()=>{
-   if(!validEmail()){status.textContent='Enter a valid email address.';emailInput.focus();return false;}
-   if(passwordInput.value.length<8){status.textContent='Password must be at least 8 characters.';passwordInput.focus();return false;}
-   return true;
- };
- const setBusy=busy=>{signInButton.disabled=registerButton.disabled=resetButton.disabled=busy;};
- form.onsubmit=async e=>{
-   e.preventDefault();if(!validCredentials())return;
-   setBusy(true);status.textContent='Signing in…';
-   try{
-     const {data,error}=await supabase.auth.signInWithPassword({email:emailInput.value.trim(),password:passwordInput.value});
-     if(error)throw error;
-     if(data.user)location.assign(new URL('../',location.href).href);
-   }catch(e){status.textContent=e.message==='Invalid login credentials'?'Email and password were not accepted. Use your signup email, or choose Send password reset.':e.message;}
-   finally{setBusy(false);}
- };
- registerButton.onclick=async()=>{
-   if(!validCredentials())return;
-   setBusy(true);status.textContent='Creating account…';
-   try{
-     const {data,error}=await supabase.auth.signUp({email:emailInput.value.trim(),password:passwordInput.value,options:{emailRedirectTo:location.origin+location.pathname}});
-     if(error)throw error;
-     if(data.session&&data.user){location.assign(new URL('../',location.href).href);return;}
-     status.textContent='Account request received. Check your email, including spam, and open the confirmation link. Then return here to sign in.';
-   }catch(e){status.textContent='Account creation failed: '+e.message;}
-   finally{setBusy(false);}
- };
- resetButton.onclick=()=>location.assign('https://veltrix-finance.onrender.com/?recover=1');
- supabase.auth.onAuthStateChange((event,session)=>{
-   if(event==='PASSWORD_RECOVERY')location.replace(new URL('../?update-password=1',location.href).href);
- });
- supabase.auth.onAuthStateChange((event,session)=>{
-   // Defer DB access outside auth callback.
-   setTimeout(()=>{
-     if(session?.user&&session.user.id!==currentUser?.id)loadUser(session.user);
-     if(!session?.user&&currentUser){generation++;currentUser=null;state=empty();render();render2();document.body.classList.remove('cloud-ready');}
-   },0);
- });
- const {data:{session}}=await supabase.auth.getSession();
- if(session?.user)await loadUser(session.user);else location.replace(new URL('../?signin=1',location.href).href);
-}
-</script></body></html>
-
+</script><noscript><p style="padding:20px;color:#fff;background:#111725">Enable JavaScript to use VEYDRAVO accounts and the finance dashboard.</p></noscript></body></html>

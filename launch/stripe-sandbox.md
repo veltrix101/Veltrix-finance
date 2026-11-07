@@ -46,3 +46,10 @@ The checkout endpoint accepts only a known `sku` and maps it to the fixed server
 After secure key setup, connect an authenticated test-only purchase action to `cleaning-checkout`; provide a fresh UUID `idempotency-key` per intentional purchase, preserving it on retries. Query the signed-in user's sandbox order via RLS for confirmation; never trust a success URL, localStorage flag or client-supplied price/user ID. Test signed webhook success, signature rejection, payment failure, duplicate/reordered delivery, refund/dispute, cross-account access denial and recovery after losing the success redirect.
 
 Before live sales, finalize access/update/support/refund terms, account-based paid enforcement or a securely delivered downloadable product, and the treatment of existing free beta users. Keep sandbox and live order records, secrets, price IDs and endpoints separate. Do not swap a live key into these sandbox-only functions. Confirm tax obligations and relevant registrations before enabling any live tax collection. Review the known Supabase leaked-password-protection warning before a full launch.
+
+
+## 2026-11-07 connection and purchase verification
+
+Restricted runtime key and webhook signing secret are saved in encrypted Edge Function secrets; CLEANING_SANDBOX_ENABLED=true. Never commit their values. Bundle Checkout session ending `ZpdH3j` completed for C$39 using Stripe’s 4242 test card. Its completed-session notification returned 200 and inserted the active account-bound bundle order. A full C$39 sandbox refund succeeded; its notification returned 200 and the order became revoked. No real money moved.
+
+The `/billing/` interface now opens account-bound sandbox checkout. The `billing-sandbox` function authenticates users server-side, refuses arbitrary SKUs and customer IDs, prevents duplicate owned purchases, and returns server-owned status. Subscription operations are separately disabled until restricted permissions and tests are complete. The public site remains a free beta; production access enforcement is not enabled.

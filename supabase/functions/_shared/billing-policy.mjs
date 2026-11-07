@@ -6,8 +6,10 @@ export function subscriptionSnapshot(sub,eventCreated=0) {
  if(sub.livemode!==false||!items||sub.items.has_more||items.length!==1||items[0].quantity!==1||!Object.values(FINANCE_PRICES).includes(items[0].price?.id))return null;
  const item=items[0],price=item.price,annual=price.id===FINANCE_PRICES.annual;
  if(price.currency!=='cad'||price.unit_amount!==(annual?3999:499)||price.recurring?.interval!==(annual?'year':'month')||price.recurring?.interval_count!==1)return null;
- const end=sub.status==='trialing'?sub.trial_end:item.current_period_end;
- return {subscription_id:sub.id,customer_id:idOf(sub.customer),price_id:price.id,status:sub.status,access_until:Number.isFinite(end)?new Date(end*1000).toISOString():null,cancel_at_period_end:!!sub.cancel_at_period_end,event_created:eventCreated};
+ const periodEnd=sub.status==='trialing'?sub.trial_end:item.current_period_end;
+ const scheduled=Number.isFinite(sub.cancel_at)&&sub.cancel_at>0;
+ const end=scheduled?Math.min(periodEnd,sub.cancel_at):periodEnd;
+ return {subscription_id:sub.id,customer_id:idOf(sub.customer),price_id:price.id,status:sub.status,access_until:Number.isFinite(end)?new Date(end*1000).toISOString():null,cancel_at_period_end:!!sub.cancel_at_period_end||scheduled,event_created:eventCreated};
 }
 export function hasFinanceAccess(subscription,blocked,now=Date.now()) {
  return !blocked&&['active','trialing'].includes(subscription?.status)&&Date.parse(subscription.access_until)>now;

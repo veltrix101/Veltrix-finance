@@ -18,7 +18,7 @@ The homepage and Finance settings display the approved prices as planned, includ
 
 ## Required before activation
 
-The restricted sandbox runtime key and webhook signing secret are now stored in Supabase Edge Function secrets. The `billing-sandbox` endpoint and account-bound subscription mapping are deployed. Subscription checkout stays disabled until the restricted key has Customers Write, Subscriptions Read, Invoices Read and Customer Portal Write permissions, and FINANCE_SANDBOX_ENABLED is enabled. The current key supports one-time Checkout Write, Payment Intents Read and Charges/Refunds Read.
+The restricted sandbox runtime key and webhook signing secret are now stored in Supabase Edge Function secrets. The `billing-sandbox` endpoint and account-bound subscription mapping are deployed. The user approved adding Customers Write, Subscriptions Read, Invoices Read and Customer Portal Write. These permissions are applied and FINANCE_SANDBOX_ENABLED=true. The key also retains Checkout Write, Payment Intents Read and Charges/Refunds Read.
 
 Build account-bound subscription checkout and Customer Portal session endpoints. Resolve the customer from a verified authenticated account using a server-owned mapping, not a browser-supplied customer ID. Reuse a customer's existing active/trialing subscription, prevent duplicate purchases, and limit each account to the intended trial eligibility. Portal sessions must always bind to that same customer.
 
@@ -34,3 +34,14 @@ Test no-card trial completion and expiry, trial eligibility, authenticated owner
 The server serializes checkout creation per authenticated account with an expiring database lease, caches creation with Stripe idempotency, reuses an open subscription checkout, blocks simultaneous active subscriptions and withholds another trial if any prior subscription exists. Customers contain no copied profile fields; only the server-owned ID mapping is stored locally. The portal takes no customer ID from the browser. A conservative finance risk policy suspends account subscription access after any associated charge refund, dispute or early fraud warning, pending manual review. Risk flags are sticky and cannot be cleared by a browser or later payment event. Canceled subscription IDs cannot be reactivated by stale events. No user finance entries are deleted or blocked.
 
 41 pure billing-policy tests passed, alongside 37 existing one-time fulfillment checks, 36 business-tool checks, 55 auth/recovery checks and 13 browser fallbacks. Database checks cover exclusive leases, client write/execute denial and stale cancellation replay. Deployed endpoints reject missing auth (401) and unsigned Stripe events (400). Full subscription trial, portal, renewal and cancellation integration tests remain pending the key permission update and authenticated browser testing. Sandbox no-card trial is 14 days and cancels without a payment method; adding a payment method permits automatic renewal. Live tax collection remains off.
+
+
+## Subscription signup and portal test — 2026-11-07
+
+The signed-in billing page created monthly sandbox Checkout `cs_test_a19V5xNJZnc7ZBtVa6FTzqwuMmM9fMru38ZjJwVrmYK0Nqn1yUzZsNPewg`. It displayed C$4.99 monthly after a 14-day no-card trial. Completion created subscription `sub_1UZ6UnH2vDw2eQVYUpeHeQwV` under the server-owned Customer mapping. The webhook recorded status trialing and access through November 21. The billing UI disabled additional subscription signup and enabled Manage test subscription.
+
+The customer-bound portal opened successfully, displayed the $0 trial invoice, no saved payment method, and cancellation. Cancellation was completed through the portal and scheduled for November 21 without a renewal charge. The test caught a newer Stripe cancellation representation: cancel_at was populated while cancel_at_period_end remained false. The policy now recognizes either representation, clamps access to cancel_at when earlier, and has three regression assertions. Redelivering the signed cancellation event safely updated the record and website display. Total billing-policy assertions: 44.
+
+Verified in the browser: individual C$15 test purchase opened from the website, completed and appeared as owned; only pricing inputs unlocked in the explicit sandbox preview, quote and profit inputs stayed disabled; the full test refund then disabled all 30 inputs again. No live funds moved.
+
+Still required before live activation: actual paid renewal/failed renewal integration tests, expired trial delivery, annual paid checkout and refund/dispute scenarios, production enforcement for paid features, live catalog/key/webhook and final terms/tax assessment. These are not implied complete by sandbox trial and portal tests.

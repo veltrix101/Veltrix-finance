@@ -5,6 +5,7 @@ const now=Date.parse('2026-11-07T12:00:00Z'),end=now/1000+86400;
 const fixture={id:'sub_test',customer:'cus_test',livemode:false,status:'trialing',trial_end:end,cancel_at_period_end:false,items:{has_more:false,data:[{quantity:1,current_period_end:end,price:{id:FINANCE_PRICES.monthly,currency:'cad',unit_amount:499,recurring:{interval:'month',interval_count:1}}}]}};
 const clone=()=>structuredClone(fixture);
 let s=subscriptionSnapshot(fixture,7);check(s.customer_id,'cus_test');check(s.event_created,7);check(hasFinanceAccess(s,false,now),true);check(hasFinanceAccess(s,true,now),false);check(hasFinanceAccess(s,false,end*1000),false);
+let scheduled=clone();scheduled.cancel_at=end-3600;check(subscriptionSnapshot(scheduled).cancel_at_period_end,true);check(subscriptionSnapshot(scheduled).access_until,new Date((end-3600)*1000).toISOString());check(hasFinanceAccess(subscriptionSnapshot(scheduled),false,(end-3600)*1000),false);
 for(const status of ['past_due','unpaid','canceled','paused','incomplete','incomplete_expired'])check(hasFinanceAccess({...s,status},false,now),false);
 check(hasFinanceAccess({...s,status:'active',cancel_at_period_end:true},false,now),true);
 for(const mutate of [x=>x.livemode=true,x=>x.items.has_more=true,x=>x.items.data[0].quantity=2,x=>x.items.data[0].price.currency='usd',x=>x.items.data[0].price.unit_amount=1,x=>x.items.data[0].price.recurring.interval_count=2,x=>x.items.data[0].price.id='price_unknown']){let sub=clone();mutate(sub);check(subscriptionSnapshot(sub),null);}

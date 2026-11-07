@@ -16,3 +16,9 @@ Account scripts and the pinned Supabase 2.57.0 browser SDK are served from this 
 - Browser fixtures cover 320, 390, 768, and 1440px widths, all eight dashboard sections, account-code navigation, and transaction save/reload. The vendored SDK is checked separately without replacing it with the fixture.
 
 The 2026-11-06 compatibility pass verified the Chromium layout cases at all four widths and live Chrome account startup. A subsequent WebKit 26.0 run passed all 94 browser/layout/account fixture checks across 320, 390, 768, and 1440px, including a separate startup check with the real vendored SDK and no website JavaScript errors. Fixture account and saving operations use a mock backend and do not send email or touch production data. Firefox launches but cannot create even a blank test page in this executor, so Firefox remains unverified here. WebKit engine coverage is not physical Safari/iPhone certification; physical iPhone/iPad and Android testing remains necessary before claiming certification on those devices.
+
+
+## Built-in help assistant
+`assets/help-assistant.js` provides shared, local curated help on the homepage, finance dashboard and business tools. It is not a generative AI and makes no AI API requests. It reads navigation labels only, not account or saved financial records. Questions are kept only in page memory. Sensitive-looking credentials are omitted from the conversation. Unknown questions get an honest fallback.
+
+With every feature change, update HELP_TOPICS answers, aliases and actions in the same commit. Verify actual control labels and saving behaviour; new screens are not learned automatically. Run `node tests/help-assistant.cjs`, then check the helper in desktop and narrow layouts. Version asset URLs when updating. Do not add account-data reads or external question logging.

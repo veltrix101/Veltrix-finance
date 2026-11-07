@@ -183,9 +183,10 @@ document.getElementById('newPasswordForm').onsubmit=async event=>{
  const {data:current,error:sessionError}=await supabase.auth.getSession();if(sessionError)throw sessionError;
  if(!recoverySession?.user||current.session?.user.id!==recoverySession.user.id)throw new Error('Your reset session expired. Request a new reset code.');
  const {error}=await supabase.auth.updateUser({password:password.value});if(error)throw error;
+ emailInput.value=recoverySession.user.email||pendingEmail;passwordInput.value='';
  password.value='';confirm.value='';recoverySession=null;recoveryActive=false;
  const {error:signOutError}=await supabase.auth.signOut({scope:'local'});if(signOutError&&signOutError.name!=='AuthSessionMissingError')throw signOutError;
- renderAccount(null);showSignIn();status.textContent='Password updated. Sign in with your new password.';
+ renderAccount(null);accountMode('password');status.textContent='Password updated. Sign in with your new password.';passwordInput.focus();
  history.replaceState(null,'',location.pathname);
  }catch(error){status.textContent='Could not update your password: '+error.message;}finally{button.disabled=false;}
 };

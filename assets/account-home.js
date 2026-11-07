@@ -16,8 +16,17 @@ function refreshCooldown(){const left=remaining(),b=document.getElementById('res
 setInterval(refreshCooldown,1000);
 function authError(error){const msg=error?.message||'Please try again.';if(error?.status===429||/rate.limit|too many|security purposes/i.test(msg))return 'Too many requests. Wait a minute before trying again. Check your inbox and spam for the newest email.';if(/smtp|sending.*email|unexpected_failure/i.test(msg))return 'We could not send the email. Please try again shortly, or use your password.';if(/expired|invalid.*token|otp_expired/i.test(msg))return 'That code is invalid or expired. Use the newest email, or request another code.';if(/invalid login credentials/i.test(msg))return 'Email and password were not accepted. Use an email code instead, or reset your password.';if(/email not confirmed/i.test(msg))return 'Please verify your email. Choose Back to sign in, then request an email code.';if(/fetch|network/i.test(msg))return 'Connection lost. Check your internet and try again.';return msg;}
 const recoveryOrigin='https://veltrix-finance.onrender.com', recoveryReturn=recoveryOrigin+'/', recoveryQuery=new URLSearchParams(location.search);
+let dashboardPrepared=false;
+function prepareDashboard(){
+ if(dashboardPrepared||navigator.connection?.saveData)return;
+ dashboardPrepared=true;
+ for(const [href,as] of [['finance/index.html','document'],['assets/account-finance.js','script']]){
+  const link=document.createElement('link');link.rel='prefetch';link.href=new URL(href,location.href).href;link.as=as;link.dataset.dashboardPrefetch='true';document.head.appendChild(link);
+ }
+}
 function renderAccount(session){
  signedIn=!!session?.user;
+ if(signedIn)prepareDashboard();
  document.getElementById('homeSignIn').hidden=signedIn;
  document.getElementById('homeAccount').hidden=!signedIn;
  document.getElementById('homeWorkspace').hidden=!signedIn;

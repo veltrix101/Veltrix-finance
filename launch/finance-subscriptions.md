@@ -45,3 +45,24 @@ The customer-bound portal opened successfully, displayed the $0 trial invoice, n
 Verified in the browser: individual C$15 test purchase opened from the website, completed and appeared as owned; only pricing inputs unlocked in the explicit sandbox preview, quote and profit inputs stayed disabled; the full test refund then disabled all 30 inputs again. No live funds moved.
 
 Still required before live activation: actual paid renewal/failed renewal integration tests, expired trial delivery, annual paid checkout and refund/dispute scenarios, production enforcement for paid features, live catalog/key/webhook and final terms/tax assessment. These are not implied complete by sandbox trial and portal tests.
+
+
+## Renewal and expiry integration tests — 2026-11-07
+
+Used Stripe test clock `clock_1UZ6a7H2vDw2eQVYCLFabE45` attached to the sandbox-only mapped customer, avoiding changes to live billing or finance entries. Do not delete this clock as routine cleanup: it contains the earlier sandbox customer. Test-clock customer mappings are not reusable for live mode; a future sandbox reset might be needed after the clock auto-expires.
+
+- Advanced past the no-card trial ending November 21. Subscription `sub_1UZ6UnH2vDw2eQVYUpeHeQwV` became canceled and the signed notification changed the database record to canceled. Its scheduled cancellation was also reached, so this tests expired/scheduled-cancellation access removal; it does not isolate the missing-card behavior from scheduled cancellation.
+- Created monthly `sub_1UZ6buH2vDw2eQVYAZcwNGfS` using the attached Stripe Visa test payment method. Initial invoice: C$4.99 paid.
+- Advanced to the next monthly cycle. Invoice `in_1UZ6cQH2vDw2eQVYhc6nxiIL` was paid for C$4.99 with billing_reason=subscription_cycle. Status remained active and server access extended through January 21.
+- Changed only this temporary subscription to Stripe’s 0341 charge-failure test card. Advanced to its next cycle. Invoice `in_1UZ6d9H2vDw2eQVYMnQFQ3cJ` remained open with C$4.99 due, C$0 paid and one failed attempt. Subscription and database became past_due; hasFinanceAccess denies that state.
+- Paid that same invoice with the successful 4242 test card. Invoice became paid, subscription and database returned to active, restoring eligibility.
+- Canceled the temporary renewal subscription with invoice_now=false and prorate=false after verification, leaving no active test renewal plan running.
+
+The failed-payment test caught an ambiguous access-until display using Stripe’s next service period even when unpaid. Non-active/non-trialing snapshots now carry no access-until value; the UI explicitly states that overdue paid access is unavailable. Six regression assertions bring the policy suite to 50 passing checks. These dates are simulated; no real charges occurred. Existing free beta access remains unchanged.
+
+Remaining before live activation: annual paid checkout and renewal scenarios, refund/dispute/early-fraud subscription integration scenarios, production paid-feature enforcement, live catalog/key/webhook and final terms/tax assessment.
+
+
+A second, isolated no-card trial (`sub_1UZ6gJH2vDw2eQVYUfAPfoSs`) had cancel_at=null and default_payment_method=null. Advancing its clock past its 14-day trial produced canceled automatically, with no scheduled cancellation or charge. The signed notification recorded canceled with access_until=null. All three test subscriptions now have canceled status.
+
+Checkout request idempotency now includes the existing subscription count, allowing a fresh paid checkout after same-day cancellation while still deduplicating retries of the same attempt. Trial eligibility remains false for an account with subscription history.

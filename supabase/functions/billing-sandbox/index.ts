@@ -71,7 +71,7 @@ Deno.serve(async req=>{
   const pending=open.data.find(s=>s.mode==='subscription');
   if(pending?.url)return json({url:pending.url,sandbox:true,resumed:true});
   const trialEligible=!account.trial_used&&all.data.length===0;
-  const session=await stripe.checkout.sessions.create(financeCheckoutParams(customer,input.period,trialEligible,origin),{idempotencyKey:'finance-ui:'+uid+':'+input.period+':'+Math.floor(Date.now()/86400000)});
+  const session=await stripe.checkout.sessions.create(financeCheckoutParams(customer,input.period,trialEligible,origin),{idempotencyKey:'finance-ui:'+uid+':'+input.period+':'+all.data.length+':'+Math.floor(Date.now()/86400000)});
   if(session.livemode||session.status!=='open'||!session.url)throw Error('Invalid checkout');
   return json({url:session.url,sandbox:true});
  }catch{return json({error:'Test billing could not finish. Refresh purchases and retry. No live payment was made.'},502);}

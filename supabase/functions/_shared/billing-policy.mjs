@@ -8,7 +8,7 @@ export function subscriptionSnapshot(sub,eventCreated=0) {
  if(price.currency!=='cad'||price.unit_amount!==(annual?3999:499)||price.recurring?.interval!==(annual?'year':'month')||price.recurring?.interval_count!==1)return null;
  const periodEnd=sub.status==='trialing'?sub.trial_end:item.current_period_end;
  const scheduled=Number.isFinite(sub.cancel_at)&&sub.cancel_at>0;
- const end=scheduled?Math.min(periodEnd,sub.cancel_at):periodEnd;
+ const end=['active','trialing'].includes(sub.status)?(scheduled?Math.min(periodEnd,sub.cancel_at):periodEnd):null;
  return {subscription_id:sub.id,customer_id:idOf(sub.customer),price_id:price.id,status:sub.status,access_until:Number.isFinite(end)?new Date(end*1000).toISOString():null,cancel_at_period_end:!!sub.cancel_at_period_end||scheduled,event_created:eventCreated};
 }
 export function hasFinanceAccess(subscription,blocked,now=Date.now()) {

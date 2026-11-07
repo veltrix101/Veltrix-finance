@@ -92,7 +92,7 @@ function accountMode(mode){
  document.getElementById('newPasswordForm').hidden=mode!=='update';
  document.getElementById('backToSignIn').hidden=mode==='signin';
  document.getElementById('homeAuthTitle').textContent=mode==='request'?'Reset your password.':mode==='update'?'Choose a new password.':mode==='reset-code'?'Enter your reset code.':mode==='code'?'Enter your email code.':'Welcome to VEYDRAVO.';
- document.getElementById('homeAuthIntro').textContent=mode==='request'?'Request a reset code for your VEYDRAVO account. You will enter it here before choosing a new password.':mode==='update'?'Your reset code is verified. Set a new password for this account.':mode==='reset-code'?'Enter your email address and the code from your newest VEYDRAVO password reset email.':mode==='code'?'Enter the email address that received your code and the code from your newest VEYDRAVO email.':mode==='password'?'Sign in with your existing email and password.':'New here or returning? Enter your email to create an account or sign in with a one-time code. No password needed.';
+ document.getElementById('homeAuthIntro').textContent=mode==='request'?'Request a reset code for your VEYDRAVO account. You will enter it here before choosing a new password.':mode==='update'?'Your reset code is verified. Set a new password for this account.':mode==='reset-code'?'Enter your email address and the code from your newest VEYDRAVO sign-in email to verify this password reset.':mode==='code'?'Enter the email address that received your code and the code from your newest VEYDRAVO email.':mode==='password'?'Sign in with your existing email and password.':'New here or returning? Enter your email to create an account or sign in with a one-time code. No password needed.';
  if(!dialog.open)dialog.showModal();refreshCooldown();
 }
 function showSignIn(){accountMode('signin');status.textContent=ready?'':'Connecting to your account…';}
@@ -154,7 +154,7 @@ document.addEventListener('click',event=>{const link=event.target.closest('a[hre
  const token=document.getElementById('emailCode').value.replace(/\s/g,'');
  if(!/^\d{6,10}$/.test(token)){status.textContent='Enter the numeric code from your newest email.';return;}
  setBusy(true);status.textContent='Verifying your code…';
- try{const {data,error}=await supabase.auth.verifyOtp({email:pendingEmail,token,type:resetting?'recovery':'email'});if(error)throw error;if(!data.session?.user)throw new Error('Verification did not complete. Please request a new code.');document.getElementById('emailCode').value='';if(resetting){showPasswordUpdate(data.session);}else{await loadUser(data.session.user);}}
+ try{const {data,error}=await supabase.auth.verifyOtp({email:pendingEmail,token,type:'email'});if(error)throw error;if(!data.session?.user)throw new Error('Verification did not complete. Please request a new code.');document.getElementById('emailCode').value='';if(resetting){showPasswordUpdate(data.session);}else{await loadUser(data.session.user);}}
  catch(error){status.textContent=authError(error);}finally{setBusy(false);}
  };
 resetButton.onclick=()=>{
@@ -167,13 +167,13 @@ async function sendResetCode(){
  if(!input.value.trim()||!input.checkValidity()){status.textContent='Enter a valid email address.';input.focus();return;}
  if(remaining()){status.textContent='Please wait '+remaining()+' seconds before requesting another email.';return;}
  setBusy(true);status.textContent='Sending reset code…';
- try{const {error}=await supabase.auth.resetPasswordForEmail(input.value.trim(),{redirectTo:recoveryReturn});if(error)throw error;
+ try{const {error}=await supabase.auth.signInWithOtp({email:input.value.trim(),options:{shouldCreateUser:false,emailRedirectTo:recoveryReturn}});if(error)throw error;
  pendingEmail=input.value.trim();document.getElementById('emailCode').value='';startCooldown();accountMode('reset-code');
- status.textContent='If an account exists, a reset code is on its way. Check your inbox and spam. Use only the newest reset code.';
+ status.textContent='Check your inbox and spam for the newest VEYDRAVO sign-in code. Enter it here to verify this password reset.';
  }catch(error){status.textContent='Could not send the reset code: '+authError(error);}finally{setBusy(false);}
 }
 document.getElementById('recoveryRequestForm').onsubmit=async event=>{event.preventDefault();await sendResetCode();};
-document.getElementById('enterResetCode').onclick=()=>{pendingEmail=document.getElementById('recoveryEmail').value.trim();document.getElementById('emailCode').value='';accountMode('reset-code');status.textContent='Use the code from your newest password reset email.';};
+document.getElementById('enterResetCode').onclick=()=>{pendingEmail=document.getElementById('recoveryEmail').value.trim();document.getElementById('emailCode').value='';accountMode('reset-code');status.textContent='Use the code from your newest VEYDRAVO sign-in email to verify this password reset.';};
 document.getElementById('newPasswordForm').onsubmit=async event=>{
  event.preventDefault();const password=document.getElementById('newPassword'),confirm=document.getElementById('confirmNewPassword'),button=event.target.querySelector('button');
  if(!password.reportValidity()||!confirm.reportValidity())return;

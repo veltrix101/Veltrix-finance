@@ -66,3 +66,8 @@ Remaining before live activation: annual paid checkout and renewal scenarios, re
 A second, isolated no-card trial (`sub_1UZ6gJH2vDw2eQVYUfAPfoSs`) had cancel_at=null and default_payment_method=null. Advancing its clock past its 14-day trial produced canceled automatically, with no scheduled cancellation or charge. The signed notification recorded canceled with access_until=null. All three test subscriptions now have canceled status.
 
 Checkout request idempotency now includes the existing subscription count, allowing a fresh paid checkout after same-day cancellation while still deduplicating retries of the same attempt. Trial eligibility remains false for an account with subscription history.
+
+
+Post-expiry UI check: starting another annual checkout succeeded with a normal paid subscription form and no additional trial, confirming repeat-trial denial and fresh checkout after cancellation. It was left unpaid.
+
+After canceling every simulated subscription, restored the owner’s sandbox billing mapping to a fresh unclocked Stripe Customer (`cus_VaHHqhxubK5Yys`), retaining trial_used=true and risk_blocked=false. This keeps future test checkouts on real time and avoids the simulation clock’s automatic customer cleanup invalidating the account mapping. Existing canceled subscription records and test purchase history are retained. There are zero active/trialing test subscriptions.

@@ -3,7 +3,7 @@
   "name": "VEYDRAVO",
   "short_name": "VEYDRAVO",
   "description": "Know your money. Plan your next payday.",
-  "start_url": "./finance/",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#101114",

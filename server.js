@@ -162,12 +162,20 @@ function forwardPolicy(env,fallback){
   return fallback;
 }
 let livePolicy={mode:'research',message:'Comparing strategy candidates. New entries are paused during validation.'};
+const appAssets = new Map();
+for (const [url, data] of Object.entries(require('./app-icons.json'))) {
+  appAssets.set(url, ['image/png', Buffer.from(data, 'base64')]);
+}
+for (const [name, type] of [['manifest.webmanifest','application/manifest+json'], ['sw.js','application/javascript']]) {
+  appAssets.set('/'+name, [type, fs.readFileSync(path.join(__dirname,name))]);
+}
 function serve(bot) {
   return http.createServer((req,res)=>{
     res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
-    res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+    res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
     if(req.method!=='GET') {res.writeHead(405);res.end();return;}
     const path=req.url.split('?')[0];
+    if(appAssets.has(path)) {const [type,data]=appAssets.get(path);res.setHeader('Content-Type',type);res.end(data);return;}
     if(path==='/api/research') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify({...researchState,forwardTestEnabled:Boolean(process.env.DEMO_FORWARD_STRATEGY),testSchedule:process.env.DEMO_EXTENDED_SESSION==='true'?'Weekday forex trading hours':'08:00–11:00 London'}));return;}
     if(path==='/health') {res.setHeader('Content-Type','application/json');res.end('{"ok":true,"mode":"demo-only"}');return;}
     if(path==='/api/status') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify({...bot.status(),executionCheck}));return;}

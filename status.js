@@ -43,3 +43,5 @@ async function refreshResearch(){try{const r=await(await fetch('/api/research',{
     const t=d.strategy.splits.at(-1);put('research-summary',d.bars.toLocaleString()+' historical candles · '+new Date(d.from).toLocaleDateString()+' to '+new Date(d.to).toLocaleDateString()+'. Holdout trades: '+t.base.trades+'.');put('strategy-verdict',r.forwardTestEnabled?'Unvalidated demo forward test is enabled by your instruction. Historical results did not pass; this does not approve real-money trading. Current schedule: '+r.testSchedule+'.':d.redesign?.verdict||d.strategy.verdict);put('forecast-verdict',d.forecast.verdict+' Forecast does not control trades. '+(d.execution?.message||''));}}catch{put('research-phase','Research status unavailable');}}
 refreshResearch();setInterval(refreshResearch,30000);
 
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

@@ -188,3 +188,40 @@ test('Read-only transient failures retry within a bound; authentication failures
   let denied=0;const rejected=createClient('fixture',async()=>{denied++;return {ok:false,status:401,json:async()=>({})};});
   await assert.rejects(rejected('/v3/accounts'),/rejected access/);assert.equal(denied,1);
 });
+test('Explicit demo-forward policy remains enabled after historical failure; unknown strategies fail closed',()=>{
+  const {forwardPolicy}=require('./server');
+  const p=forwardPolicy({DEMO_FORWARD_STRATEGY:'trend-breakout-20'},{mode:'paused'});
+  assert.equal(p.mode,'candidate');assert.equal(p.forwardTest,true);
+  assert.equal(forwardPolicy({DEMO_FORWARD_STRATEGY:'unknown'},{mode:'paused'}).mode,'paused');
+  assert.equal(inSession(Date.parse('2026-11-17T15:00:00Z'),true),true);
+  assert.equal(inSession(Date.parse('2026-11-21T15:00:00Z'),true),false);
+});
+test('Extended demo session accepts weekday signals without changing default historical hours',()=>{
+  const midday=Date.parse('2026-11-17T15:03:10Z'),s={...signal,time:midday-70000},q={...quote,time:new Date(midday).toISOString()};
+  assert.equal(orderFor(s,q,5,midday),null);assert.ok(orderFor(s,q,5,midday,{extendedSession:true}));
+});
+test('Technical demo check opens exactly one unit, closes only its own trade, and does not repeat',async()=>{
+  const {runDemoCheck}=require('./execution-check');let closed=false,opened=false;const writes=[];
+  const id='mmb-check-fixture-trade';
+  const factory=()=>async(path,method='GET',body)=>{
+    if(method!=='GET')writes.push({path,method,body});
+    if(path==='/v3/accounts')return {accounts:[{id:'101-001-1234567-001'}]};
+    if(path.includes('/trades/@')){if(opened)return {trade:{id:'42',state:closed?'CLOSED':'OPEN',instrument:'EUR_USD',initialUnits:'1',clientExtensions:{id}}};throw Error('OANDA request failed (404).');}
+    if(path.includes('/orders/@'))throw Error('OANDA request failed (404).');
+    if(path.endsWith('/summary'))return {account:{NAV:'10000',marginAvailable:'10000'}};
+    if(path.endsWith('/pendingOrders'))return {orders:[]};if(path.endsWith('/openTrades'))return {trades:[]};
+    if(path.includes('/instruments?'))return {instruments:[{name:'EUR_USD',minimumTradeSize:'1',displayPrecision:5}]};
+    if(path.includes('/pricing?'))return {prices:[{...quote,time:new Date().toISOString()}]};
+    if(path.endsWith('/orders')&&method==='POST'){assert.equal(body.order.units,'1');assert.ok(body.order.stopLossOnFill);opened=true;return {orderFillTransaction:{tradeOpened:{tradeID:'42'}}};}
+    if(path.endsWith('/trades/42/close')&&method==='PUT'){closed=true;return {orderFillTransaction:{}};}
+    throw Error('Unexpected endpoint');
+  };
+  const env={DEMO_EXECUTION_CHECK_ID:'fixture',OANDA_DEMO_TOKEN:'fixture-only'};
+  const first=await runDemoCheck(env,factory);assert.equal(first.entryVerified,true);assert.equal(first.closeVerified,true);
+  await runDemoCheck(env,factory);assert.equal(writes.length,2);assert.equal(writes[0].method,'POST');assert.equal(writes[1].method,'PUT');
+});
+test('An uncertain trade-close write is never automatically retried',async()=>{
+  let writes=0;const api=createClient('fixture',async()=>{writes++;throw Error('network');});
+  await assert.rejects(api('/v3/accounts/123/trades/42/close','PUT',{units:'ALL'}),e=>e.uncertain===true);assert.equal(writes,1);
+  await assert.rejects(api('/v3/accounts/123/trades/42/clientExtensions','PUT',{}),/Blocked/);
+});

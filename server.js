@@ -1,22 +1,22 @@
 'use strict';
 const http=require('node:http');
-const {analyze,orderFor,londonDay,inSession}=require('./strategy');
+const {analyze,orderFor,assessOrder,londonDay,inSession}=require('./strategy');
 const ORIGIN='https://api-fxpractice.oanda.com'; // Hardcoded: live accounts cannot be used.
 const TAG='mmb-demo-v1';
 function createClient(token,transport=fetch) {
   async function once(path,method,body) {
     const url=new URL(path,ORIGIN);
     if(url.origin!==ORIGIN || !url.pathname.startsWith('/v3/')) throw Error('Blocked API address');
-    if(!['GET','POST'].includes(method) || (method==='POST' && !/^\/v3\/accounts\/[^/]+\/orders$/.test(url.pathname))) throw Error('Blocked API operation');
+    if(!['GET','POST','PUT'].includes(method) || (method==='PUT' && !/^\/v3\/accounts\/[^/]+\/trades\/[0-9]+\/close$/.test(url.pathname)) || (method==='POST' && !/^\/v3\/accounts\/[^/]+\/orders$/.test(url.pathname))) throw Error('Blocked API operation');
     let response;
     try {response=await transport(url,{method,redirect:'error',signal:AbortSignal.timeout(12000),
       headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});}
-    catch {const e=Error('OANDA connection interrupted');e.uncertain=method==='POST';throw e;}
+    catch {const e=Error('OANDA connection interrupted');e.uncertain=method!=='GET';throw e;}
     let data;
-    try {data=await response.json();} catch {const e=Error('OANDA response unreadable');e.uncertain=method==='POST';throw e;}
+    try {data=await response.json();} catch {const e=Error('OANDA response unreadable');e.uncertain=method!=='GET';throw e;}
     if(!response.ok) {
       const e=Error(response.status===401||response.status===403?'OANDA rejected access. Check the demo token.':`OANDA request failed (${response.status}).`);
-      e.uncertain=method==='POST' && response.status>=500;throw e;
+      e.uncertain=method!=='GET' && response.status>=500;throw e;
     }
     return data;
   }
@@ -41,7 +41,7 @@ function parseCandles(data) {
 }
 async function history(api,base,now) {
   // A 36-hour lookback covers the entire London day across daylight-saving changes.
-  const index=await api(`${base}/transactions?from=${encodeURIComponent(new Date(now-36*3600000).toISOString())}&pageSize=1000&type=LIMIT_ORDER`);
+  const index=await api(`${base}/transactions?from=${encodeURIComponent(new Date(now-36*3600000).toISOString())}&pageSize=1000&type=LIMIT_ORDER,MARKET_ORDER`);
   if(!Array.isArray(index.pages) || index.pages.length>10) throw Error('Transaction history requires review');
   const transactions=[];
   for(const page of index.pages) {
@@ -51,7 +51,7 @@ async function history(api,base,now) {
     if(!Array.isArray(data.transactions)) throw Error('Incomplete transaction history');
     transactions.push(...data.transactions);
   }
-  return transactions.filter(t=>t.type==='LIMIT_ORDER' && t.clientExtensions?.tag===TAG);
+  return transactions.filter(t=>['LIMIT_ORDER','MARKET_ORDER'].includes(t.type) && [TAG,'mmb-technical-check'].includes(t.clientExtensions?.tag));
 }
 function maySubmit({account,orders,trades,transactions,order,now}) {
   if(!order || account.mt4AccountID || !Number.isFinite(Number(account.NAV)) || Number(account.NAV)<=0 || !Number.isFinite(Number(account.marginAvailable)) || Number(account.marginAvailable)<=0) return false;
@@ -62,9 +62,11 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   return transactions.filter(t=>londonDay(Date.parse(t.time))===londonDay(now)).length<2;
 }
 function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'})) {
-  let state={version:'1.3.1',mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+  let state={version:'1.4.0',mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const readyAt=Date.now()+90000;
+  const extendedSession=env.DEMO_EXTENDED_SESSION==='true';
+  state.entryWindow=extendedSession?'Weekdays, all forex trading hours':'Weekdays 08:00–11:00 Europe/London';
   let accountID=env.OANDA_ACCOUNT_ID||null,busy=false,halted=false,stopping=false;
   let evaluated=0,bars=[],instrument=null,historyAt=0,transactions=[];
   async function tick() {
@@ -87,7 +89,7 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       if(Math.floor(checked/60000)!==Math.floor(historyAt/60000)) {transactions=await history(api,base,checked);historyAt=checked;}
       const ordersToday=transactions.filter(t=>londonDay(Date.parse(t.time))===londonDay(checked)).length;
       const previousOrder=transactions.at(-1)?.time;
-      state={...state,connected:true,trading:false,pendingOrders:orders.length,openTrades:trades.length,ordersToday,sessionOpen:inSession(checked),lastCheck:new Date().toISOString(),lastOrder:previousOrder||state.lastOrder};
+      state={...state,connected:true,trading:false,pendingOrders:orders.length,openTrades:trades.length,ordersToday,sessionOpen:inSession(checked,extendedSession),lastCheck:new Date().toISOString(),lastOrder:previousOrder||state.lastOrder};
       if(env.BOT_ENABLED==='false') {state.status='Connected. Trading paused in settings.';state.trading=false;return;}
       const lastCached=bars.at(-1);
       const query=lastCached && checked-lastCached.time<3*86400000?`from=${encodeURIComponent(new Date(lastCached.time).toISOString())}&includeFirst=false&count=5000`:'count=5000';
@@ -100,23 +102,26 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       const now=Date.now();
       if(orders.length || trades.length) {evaluated=last.time;state.stage='Broker position or order active';state.status=trades.length?'Open trade at OANDA. New entries blocked until it closes.':'Pending order at OANDA. Waiting for its fill or expiry.';return;}
       const policy=readPolicy();
-      state.strategy=policy.mode==='candidate'?policy.id:policy.mode==='original'?'Original sweep rules':'Research only — new entries paused';
+      state.forwardTest=Boolean(policy.forwardTest);
+      state.validationStatus=policy.forwardTest?'Unvalidated demo forward test':'Historical validation policy';
+      state.strategy=policy.mode==='candidate'?require('./candidates').CANDIDATES.find(c=>c.id===policy.id)?.name||policy.id:policy.mode==='original'?'Original sweep rules':'Research only — new entries paused';
       if(!['candidate','original'].includes(policy.mode)){evaluated=last.time;state.stage='Strategy validation';state.status=policy.message||'New entries paused until a strategy passes validation.';return;}
       if(now<readyAt) {evaluated=last.time;state.stage='Startup checks';state.status='Connected. Startup checks in progress.';return;}
-      if(!inSession(now)) {evaluated=last.time;state.stage='Outside entry window';state.status='Running. New entries wait for weekdays 08:00–11:00 London time.';return;}
+      if(!inSession(now,extendedSession)) {evaluated=last.time;state.stage='Outside entry window';state.status=extendedSession?'Running. Waiting for weekday forex trading hours.':'Running. New entries wait for weekdays 08:00–11:00 London time.';return;}
       if(ordersToday>=2) {evaluated=last.time;state.stage='Daily order limit';state.status='Daily limit reached. No new entries until the next London trading day.';return;}
       const age=now-(last.time+60000);
       if(age<0 || age>90000) {state.stage='Waiting for fresh data';state.status='Completed market data is stale or invalid. New orders blocked.';return;}
       state.trading=true;
       if(last.time<=evaluated) return;
       evaluated=last.time;
-      const analysis=policy.mode==='candidate'?require('./candidates').analyzeCandidate(policy.id,bars):analyze(bars),signal=analysis.signal;
+      const analysis=policy.mode==='candidate'?require('./candidates').analyzeCandidate(policy.id,bars,{extendedSession}):analyze(bars),signal=analysis.signal;
       state.stage=analysis.stage;
       if(!signal) {state.status=analysis.stage+'.';return;}
       // Re-read broker state/history immediately before submission, never rely on a cached snapshot.
       const [freshAccount,freshOrders,freshTrades,freshHistory,pricing]=await Promise.all([api(base+'/summary'),api(base+'/pendingOrders'),api(base+'/openTrades'),history(api,base,now),api(base+'/pricing?instruments=EUR_USD')]);
-      const order=orderFor(signal,pricing.prices?.find(p=>p.instrument==='EUR_USD'),instrument.displayPrecision,Date.now());
-      if(!maySubmit({account:freshAccount.account,orders:freshOrders.orders,trades:freshTrades.trades,transactions:freshHistory,order,now:Date.now()})) {state.stage='Entry blocked';state.status='Setup skipped: spread, price, reward/risk, or broker entry limits failed.';return;}
+      const checkedOrder=assessOrder(signal,pricing.prices?.find(p=>p.instrument==='EUR_USD'),instrument.displayPrecision,Date.now(),{extendedSession});
+      const order=checkedOrder.order;
+      if(!maySubmit({account:freshAccount.account,orders:freshOrders.orders,trades:freshTrades.trades,transactions:freshHistory,order,now:Date.now()})) {state.stage='Entry blocked';state.status='Setup skipped: '+(checkedOrder.reason||'broker entry limits failed')+'.';return;}
       if(stopping) return;
       // Never retry a POST. An uncertain response halts the bot for manual review.
       const response=await api(base+'/orders','POST',{order});
@@ -135,6 +140,14 @@ const path=require('node:path');
 const PAGE=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const STATUS_SCRIPT=fs.readFileSync(path.join(__dirname,'status.js'),'utf8');
 let researchState={phase:'Not started',progress:0,result:null};
+let executionCheck={status:'Not requested',entryVerified:false,closeVerified:false,requiresReview:false};
+function forwardPolicy(env,fallback){
+  if(executionCheck.requiresReview)return {mode:'paused',message:'Broker execution check requires review. New entries paused.'};
+  if(executionCheck.status==='In progress')return {mode:'research',message:'Verifying the demo order and close path.'};
+  const id=env.DEMO_FORWARD_STRATEGY;
+  if(id){if(!require('./candidates').CANDIDATES.some(c=>c.id===id))return {mode:'paused',message:'Unknown demo test strategy; check configuration.'};return {mode:'candidate',id,forwardTest:true};}
+  return fallback;
+}
 let livePolicy={mode:'research',message:'Comparing strategy candidates. New entries are paused during validation.'};
 function serve(bot) {
   return http.createServer((req,res)=>{
@@ -142,17 +155,21 @@ function serve(bot) {
     res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
     if(req.method!=='GET') {res.writeHead(405);res.end();return;}
     const path=req.url.split('?')[0];
-    if(path==='/api/research') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify(researchState));return;}
+    if(path==='/api/research') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify({...researchState,forwardTestEnabled:Boolean(process.env.DEMO_FORWARD_STRATEGY),testSchedule:process.env.DEMO_EXTENDED_SESSION==='true'?'Weekday forex trading hours':'08:00–11:00 London'}));return;}
     if(path==='/health') {res.setHeader('Content-Type','application/json');res.end('{"ok":true,"mode":"demo-only"}');return;}
-    if(path==='/api/status') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify(bot.status()));return;}
+    if(path==='/api/status') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify({...bot.status(),executionCheck}));return;}
     if(path==='/status.js') {res.setHeader('Content-Type','application/javascript');res.end(STATUS_SCRIPT);return;}
     if(path==='/') {res.setHeader('Content-Type','text/html;charset=utf-8');res.end(PAGE);return;}
     res.writeHead(404);res.end('Not found');
   });
 }
 if(require.main===module) {
-  const bot=createBot(process.env,fetch,()=>livePolicy),server=serve(bot);
+  const bot=createBot(process.env,fetch,()=>forwardPolicy(process.env,livePolicy)),server=serve(bot);
   server.listen(Number(process.env.PORT)||10000,'0.0.0.0',()=>console.log('Demo-only bot service started'));
+  if(process.env.DEMO_EXECUTION_CHECK_ID){
+    executionCheck={...executionCheck,status:'In progress'};
+    require('./execution-check').runDemoCheck(process.env,createClient).then(result=>{executionCheck=result;}).catch(()=>{executionCheck={status:'Execution check interrupted; review OANDA before retrying.',entryVerified:false,closeVerified:false,requiresReview:true};});
+  }
   bot.tick();const timer=setInterval(()=>bot.tick(),30000);
   // Research is isolated from order monitoring and sends only read requests.
   let researcher=null;
@@ -173,4 +190,4 @@ if(require.main===module) {
   },5000);
   process.on('SIGTERM',()=>{clearTimeout(researchTimer);researcher?.terminate();clearInterval(timer);bot.stop();server.close(()=>process.exit(0));setTimeout(()=>process.exit(0),15000).unref();});
 }
-module.exports={createClient,parseCandles,history,maySubmit,createBot,serve};
+module.exports={createClient,parseCandles,history,maySubmit,createBot,serve,forwardPolicy};

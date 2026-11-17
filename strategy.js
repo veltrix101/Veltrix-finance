@@ -3,9 +3,9 @@
 const dayFormat=new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'});
 const sessionFormat=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',weekday:'short',hour:'2-digit',hourCycle:'h23'});
 function londonDay(time) {return dayFormat.format(new Date(time));}
-function inSession(time) {
+function inSession(time,extended=false) {
   const parts=Object.fromEntries(sessionFormat.formatToParts(new Date(time)).map(p=>[p.type,p.value]));
-  return !['Sat','Sun'].includes(parts.weekday) && Number(parts.hour)>=8 && Number(parts.hour)<11;
+  return !['Sat','Sun'].includes(parts.weekday) && (extended || (Number(parts.hour)>=8 && Number(parts.hour)<11));
 }
 function createScanner() {
   let setup=null,occupiedUntil=-1,lastDay=null,i=-1,start=null,previousTime=null;
@@ -47,8 +47,8 @@ function createScanner() {
 }
 function analyze(bars){const scanner=createScanner();let result={signal:null,stage:'Building market history'};for(const b of bars)result=scanner.push(b);return result;}
 function latestSignal(bars){return analyze(bars).signal;}
-function assessOrder(signal, price, precision=5, now=Date.now()) {
-  if(!signal || !price || price.status!=='tradeable' || !inSession(now)) return {reason:'No signal, closed session, or unavailable price'};
+function assessOrder(signal, price, precision=5, now=Date.now(),options={}) {
+  if(!signal || !price || price.status!=='tradeable' || !inSession(now,options.extendedSession)) return {reason:'No signal, closed session, or unavailable price'};
   const age=now-(signal.time+60000);
   const quoteAge=now-Date.parse(price.time);
   if(age<0 || age>90000 || !Number.isFinite(quoteAge) || quoteAge< -5000 || quoteAge>15000) return {reason:'Stale signal or quote'};
@@ -72,5 +72,5 @@ function assessOrder(signal, price, precision=5, now=Date.now()) {
     stopLossOnFill:{price:stop.toFixed(precision),timeInForce:'GTC'},
     takeProfitOnFill:{price:target.toFixed(precision),timeInForce:'GTC'}}};
 }
-function orderFor(signal,price,precision=5,now=Date.now()){return assessOrder(signal,price,precision,now).order||null;}
+function orderFor(signal,price,precision=5,now=Date.now(),options={}){return assessOrder(signal,price,precision,now,options).order||null;}
 module.exports={londonDay,inSession,createScanner,analyze,latestSignal,assessOrder,orderFor};

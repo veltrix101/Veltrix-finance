@@ -6,7 +6,7 @@ const CANDIDATES=[
   {id:'trend-breakout-60',name:'60-minute trend breakout',kind:'breakout',lookback:60,stopATR:4,targetATR:8},
   {id:'range-reversion-20',name:'20-minute range reversion',kind:'reversion',lookback:20,stopATR:2,targetATR:4}
 ];
-function candidateScanner(id){
+function candidateScanner(id,options={}){
   const cfg=CANDIDATES.find(c=>c.id===id);if(!cfg)throw Error('Unknown research strategy');
   const prior=[];let previousTime=null,cooldown=0,fast=null,slow=null;
   return {push(b){
@@ -18,7 +18,7 @@ function candidateScanner(id){
     if(prior.length>=80){
       cooldown=Math.max(0,cooldown-1);stage='Waiting for the next completed five-minute check';
       // Sample only completed five-minute boundaries, never a partially formed minute.
-      if((b.time+60000)%300000===0&&inSession(b.time)&&cooldown===0){
+      if((b.time+60000)%300000===0&&inSession(b.time,options.extendedSession)&&cooldown===0){
         const recent=prior.slice(-cfg.lookback),last20=prior.slice(-20);
         const tr=last20.map((v,i)=>Math.max(v.high-v.low,Math.abs(v.high-(i?last20[i-1].close:v.open)),Math.abs(v.low-(i?last20[i-1].close:v.open))));
         const atr=tr.reduce((a,v)=>a+v,0)/tr.length;
@@ -45,7 +45,7 @@ function candidateScanner(id){
     return {signal,stage};
   }};
 }
-function analyzeCandidate(id,bars){const scan=candidateScanner(id);let result={signal:null,stage:'Building indicator history'};for(const b of bars)result=scan.push(b);return result;}
+function analyzeCandidate(id,bars,options={}){const scan=candidateScanner(id,options);let result={signal:null,stage:'Building indicator history'};for(const b of bars)result=scan.push(b);return result;}
 function blockConfidence(daily,seed=78123){
   if(daily.length<10)return {days:daily.length,lower:null,upper:null};
   let state=seed;const random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};

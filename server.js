@@ -62,7 +62,7 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   return transactions.filter(t=>londonDay(Date.parse(t.time))===londonDay(now)).length<2;
 }
 function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'})) {
-  let state={version:'1.4.0',mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+  let state={version:'1.5.0',strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const readyAt=Date.now()+90000;
   const extendedSession=env.DEMO_EXTENDED_SESSION==='true';
@@ -121,12 +121,14 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       const [freshAccount,freshOrders,freshTrades,freshHistory,pricing]=await Promise.all([api(base+'/summary'),api(base+'/pendingOrders'),api(base+'/openTrades'),history(api,base,now),api(base+'/pricing?instruments=EUR_USD')]);
       const checkedOrder=assessOrder(signal,pricing.prices?.find(p=>p.instrument==='EUR_USD'),instrument.displayPrecision,Date.now(),{extendedSession});
       const order=checkedOrder.order;
+      // Scale strategy demo entries only; execution checks remain one unit.
+      if(order) order.units=String(Math.sign(Number(order.units))*1000);
       if(!maySubmit({account:freshAccount.account,orders:freshOrders.orders,trades:freshTrades.trades,transactions:freshHistory,order,now:Date.now()})) {state.stage='Entry blocked';state.status='Setup skipped: '+(checkedOrder.reason||'broker entry limits failed')+'.';return;}
       if(stopping) return;
       // Never retry a POST. An uncertain response halts the bot for manual review.
       const response=await api(base+'/orders','POST',{order});
       if(response.orderRejectTransaction || response.orderCancelTransaction || !response.orderCreateTransaction) {state.stage='Broker rejected entry';state.status='Demo order rejected or cancelled by broker.';return;}
-      historyAt=0;state.ordersToday++;state.lastOrder=new Date().toISOString();state.stage='Order submitted';state.status='One-unit demo limit order submitted with broker-held stop and target.';
+      historyAt=0;state.ordersToday++;state.lastOrder=new Date().toISOString();state.stage='Order submitted';state.status='1,000-unit demo limit order submitted with broker-held stop and target.';
     } catch(e) {
       if(e.uncertain) {halted=true;state.trading=false;state.stage='Manual broker review required';state.status='Paused: order outcome uncertain. Review OANDA before restarting.';}
       else {state.connected=false;state.trading=false;state.stage='Connection or data check failed';state.status=e.message;}

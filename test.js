@@ -95,7 +95,7 @@ test('Bot runs through real adapter shape, submits once and reconciles next tick
     const bot=createBot({OANDA_DEMO_TOKEN:'fixture-only'},transport);
     await bot.tick();assert.equal(posts,0);
     clock=now;bars=fixture();await bot.tick();assert.equal(posts,1);
-    await bot.tick();assert.equal(posts,1);assert.equal(tx[0].order.units,'1');
+    await bot.tick();assert.equal(posts,1);assert.equal(tx[0].order.units,'1000');
     assert.equal(bot.status().connected,true);assert.ok(!JSON.stringify(bot.status()).includes('fixture-only'));
   } finally {Date.now=realNow;}
 });
@@ -225,3 +225,5 @@ test('An uncertain trade-close write is never automatically retried',async()=>{
   await assert.rejects(api('/v3/accounts/123/trades/42/close','PUT',{units:'ALL'}),e=>e.uncertain===true);assert.equal(writes,1);
   await assert.rejects(api('/v3/accounts/123/trades/42/clientExtensions','PUT',{}),/Blocked/);
 });
+
+test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.5.0');assert.equal(order.units,'1');});

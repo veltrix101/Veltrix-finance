@@ -62,13 +62,24 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   return true;
 }
 function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'})) {
-  let state={version:'1.6.0',dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+  let state={version:'1.7.0',dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const readyAt=Date.now()+90000;
   const extendedSession=env.DEMO_EXTENDED_SESSION==='true';
   state.entryWindow=extendedSession?'Weekdays, all forex trading hours':'Weekdays 08:00–11:00 Europe/London';
   let accountID=env.OANDA_ACCOUNT_ID||null,busy=false,halted=false,stopping=false;
   let evaluated=0,bars=[],instrument=null,historyAt=0,transactions=[];
+  const resultCache = new Map();
+  let nextReport = 0, reporting = false;
+  function refreshResults(base, currency, now) {
+    if (!currency || reporting || now < nextReport) return;
+    reporting = true;
+    nextReport = now + 300000;
+    require('./performance').closedResults(api, base, currency, resultCache)
+      .then(report => { state.performance = report; })
+      .catch(() => { state.performance = {unavailable:true}; })
+      .finally(() => { reporting = false; });
+  }
   async function tick() {
     if(busy || !token || halted || stopping) return;
     busy=true;
@@ -90,6 +101,7 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       const ordersToday=transactions.filter(t=>londonDay(Date.parse(t.time))===londonDay(checked)).length;
       const previousOrder=transactions.at(-1)?.time;
       state={...state,connected:true,trading:false,pendingOrders:orders.length,openTrades:trades.length,ordersToday,sessionOpen:inSession(checked,extendedSession),lastCheck:new Date().toISOString(),lastOrder:previousOrder||state.lastOrder};
+      refreshResults(base, account.currency, checked);
       if(env.BOT_ENABLED==='false') {state.status='Connected. Trading paused in settings.';state.trading=false;return;}
       const lastCached=bars.at(-1);
       const query=lastCached && checked-lastCached.time<3*86400000?`from=${encodeURIComponent(new Date(lastCached.time).toISOString())}&includeFirst=false&count=5000`:'count=5000';
@@ -192,3 +204,4 @@ if(require.main===module) {
   process.on('SIGTERM',()=>{clearTimeout(researchTimer);researcher?.terminate();clearInterval(timer);bot.stop();server.close(()=>process.exit(0));setTimeout(()=>process.exit(0),15000).unref();});
 }
 module.exports={createClient,parseCandles,history,maySubmit,createBot,serve,forwardPolicy};
+

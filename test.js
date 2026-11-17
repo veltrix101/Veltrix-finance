@@ -226,4 +226,27 @@ test('An uncertain trade-close write is never automatically retried',async()=>{
   await assert.rejects(api('/v3/accounts/123/trades/42/clientExtensions','PUT',{}),/Blocked/);
 });
 
-test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.6.0');assert.equal(order.units,'1');});
+test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.7.0');assert.equal(order.units,'1');});
+
+test('Closed strategy results attribute entry and exit costs once and exclude test fills', async()=>{
+  const {closedResults}=require('./performance');
+  const cache=new Map();
+  const trades=[['10','5'],['20','-3']].map(([id,pl],i)=>({
+    id,closeTime:new Date(now+i*60000).toISOString(),state:'CLOSED',instrument:'EUR_USD',
+    initialUnits:i?'1000':'-1000',clientExtensions:{tag:'mmb-demo-v1'},
+    closingTransactionIDs:[String(Number(id)+1)],realizedPL:pl,financing:'-0.25'
+  }));
+  let fills=0;
+  const api=async path=>{
+    if(path.includes('/trades?'))return {trades:[...trades,{...trades[0],initialUnits:'1'}]};
+    const n=Number(path.split('/').pop());fills++;
+    const leg={tradeID:String(n-n%10)};
+    return {transaction:{type:'ORDER_FILL',commission:'0.50',...(n%10?{tradesClosed:[leg]}:{tradeOpened:leg})}};
+  };
+  for(let i=0;i<2;i++){
+    const result=await closedResults(api,'/demo','CAD',cache);
+    assert.equal(result.count,2);assert.equal(result.wins,1);assert.equal(result.net,-0.5);
+    assert.equal(result.worst,-4.25);assert.equal(result.drawdown,4.25);
+  }
+  assert.equal(fills,4);
+});

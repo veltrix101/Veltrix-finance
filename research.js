@@ -36,7 +36,7 @@ function summarize(trades,submissions) {
   for(const t of trades){pnl+=t.pnl;peak=Math.max(peak,pnl);drawdown=Math.max(drawdown,peak-pnl);if(t.pnl>0){wins++;grossProfit+=t.pnl;}else grossLoss-=t.pnl;}
   return {submissions,trades:trades.length,wins,winRate:trades.length?wins/trades.length:null,pnlUSDPerOneEUR:pnl,meanPnlUSD:trades.length?pnl/trades.length:null,profitFactor:grossLoss?grossProfit/grossLoss:null,maxClosedTradeDrawdownUSD:drawdown};
 }
-function backtest(bars,start,end,slippage=0,scannerFactory=createScanner) {
+function backtest(bars,start,end,slippage=0,scannerFactory=createScanner, options={}) {
   const scanner=scannerFactory();let pending=null,position=null,signal=null,day=null,count=0,submissions=0;
   const trades=[];let signals=0;const rejections={};
   const close=(price,b,reason)=>{const exit=price-position.dir*slippage;trades.push({pnl:position.dir*(exit-position.entry),entryTime:position.entryTime,exitTime:b.time,reason});position=null;};
@@ -45,9 +45,9 @@ function backtest(bars,start,end,slippage=0,scannerFactory=createScanner) {
     if(d!==day){day=d;count=0;}
     if(active){
       // Signal is known only after the preceding candle has closed.
-      if(signal&&!pending&&!position&&count<2&&i&&b.time-bars[i-1].time===60000){
+      if(signal&&!pending&&!position&&count<(options.dailyLimit ?? 2)&&i&&b.time-bars[i-1].time===60000){
         const quote={status:'tradeable',time:new Date(b.time).toISOString(),bids:[{price:String(b.bid.open)}],asks:[{price:String(b.ask.open)}]};
-        const checked=assessOrder(signal,quote,5,b.time),order=checked.order;
+        const checked=assessOrder(signal,quote,5,b.time,options),order=checked.order;
         if(!order)rejections[checked.reason]=(rejections[checked.reason]||0)+1;
         if(order){pending={dir:signal.dir,limit:Number(order.price),stop:Number(order.stopLossOnFill.price),target:Number(order.takeProfitOnFill.price),expires:Date.parse(order.gtdTime)};count++;submissions++;}
       }
@@ -169,6 +169,15 @@ async function run(progress) {
   progress({phase:'Checking probability forecast and broker execution history',progress:99});
   const result=study(bars);
   result.redesign=redesign;
+  const {CANDIDATES, candidateScanner} = require('./candidates');
+  const current = CANDIDATES.find(c => c.id === process.env.DEMO_FORWARD_STRATEGY);
+  if (current) {
+    const options = {extendedSession:process.env.DEMO_EXTENDED_SESSION === 'true', dailyLimit:Infinity};
+    const start = bars[Math.floor(bars.length * 0.8)].time;
+    const end = bars.at(-1).time + 60000;
+    const replay = slip => backtest(bars, start, end, slip, () => candidateScanner(current.id, options), options);
+    result.currentReplay = {strategy:current.name, start, end, base:replay(0), stress:replay(0.0001)};
+  }
   result.execution=await executionEvidence(path=>api(path),account,Date.now());
   return result;
 }

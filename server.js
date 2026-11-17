@@ -52,7 +52,7 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   return transactions.filter(t=>londonDay(Date.parse(t.time))===londonDay(now)).length<2;
 }
 function createBot(env=process.env,transport=fetch) {
-  let state={version:'1.1.0',mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+  let state={version:'1.2.0',mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const readyAt=Date.now()+90000;
   let accountID=env.OANDA_ACCOUNT_ID||null,busy=false,halted=false,stopping=false;
@@ -121,12 +121,14 @@ const fs=require('node:fs');
 const path=require('node:path');
 const PAGE=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const STATUS_SCRIPT=fs.readFileSync(path.join(__dirname,'status.js'),'utf8');
+let researchState={phase:'Not started',progress:0,result:null};
 function serve(bot) {
   return http.createServer((req,res)=>{
     res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
     res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
     if(req.method!=='GET') {res.writeHead(405);res.end();return;}
     const path=req.url.split('?')[0];
+    if(path==='/api/research') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify(researchState));return;}
     if(path==='/health') {res.setHeader('Content-Type','application/json');res.end('{"ok":true,"mode":"demo-only"}');return;}
     if(path==='/api/status') {res.setHeader('Content-Type','application/json');res.end(JSON.stringify(bot.status()));return;}
     if(path==='/status.js') {res.setHeader('Content-Type','application/javascript');res.end(STATUS_SCRIPT);return;}
@@ -138,6 +140,19 @@ if(require.main===module) {
   const bot=createBot(),server=serve(bot);
   server.listen(Number(process.env.PORT)||10000,'0.0.0.0',()=>console.log('Demo-only bot service started'));
   bot.tick();const timer=setInterval(()=>bot.tick(),30000);
-  process.on('SIGTERM',()=>{clearInterval(timer);bot.stop();server.close(()=>process.exit(0));setTimeout(()=>process.exit(0),15000).unref();});
+  // Research is isolated from order monitoring and sends only read requests.
+  let researcher=null;
+  const researchTimer=setTimeout(()=>{
+    const {Worker}=require('node:worker_threads');
+    researchState.phase='Starting read-only historical study';
+    researcher=new Worker(path.join(__dirname,'research.js'));
+    researcher.on('message',message=>{
+      if(message.type==='progress')researchState={...researchState,phase:message.phase,progress:message.progress};
+      if(message.type==='complete')researchState={phase:'Study complete',progress:100,result:message.result};
+      if(message.type==='failed')researchState={...researchState,phase:message.message,progress:0};
+    });
+    researcher.on('error',()=>{researchState.phase='Historical study failed; trading was not changed.';});
+  },5000);
+  process.on('SIGTERM',()=>{clearTimeout(researchTimer);researcher?.terminate();clearInterval(timer);bot.stop();server.close(()=>process.exit(0));setTimeout(()=>process.exit(0),15000).unref();});
 }
 module.exports={createClient,parseCandles,history,maySubmit,createBot,serve};

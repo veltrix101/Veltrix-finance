@@ -7,48 +7,46 @@ function inSession(time) {
   const parts=Object.fromEntries(sessionFormat.formatToParts(new Date(time)).map(p=>[p.type,p.value]));
   return !['Sat','Sun'].includes(parts.weekday) && Number(parts.hour)>=8 && Number(parts.hour)<11;
 }
-function analyze(bars) {
-  if(bars.length<1500) return {signal:null,stage:'Building market history'};
-  let setup=null, occupiedUntil=-1, lastDay=null, result=null;
-  const buckets=[3600000,14400000,86400000].map(size=>({size,current:null,previous:null}));
-  for(let i=0;i<bars.length;i++) {
-    const b=bars[i],day=londonDay(b.time);
-    if(lastDay!==day) {setup=null;occupiedUntil=-1;lastDay=day;}
-    for(const a of buckets) {
-      const key=Math.floor(b.time/a.size);
-      if(!a.current || a.current.key!==key) {a.previous=a.current; a.current={key,high:b.high,low:b.low};}
-    }
-    if(i && b.time-bars[i-1].time!==60000) {setup=null;occupiedUntil=-1;}
-    if(!inSession(b.time)) setup=null;
-    if(setup && i>setup.expires) setup=null;
-    if(inSession(b.time) && i>occupiedUntil && i>=5) {
-      if(setup && i>setup.at) {
+function createScanner() {
+  let setup=null,occupiedUntil=-1,lastDay=null,i=-1,start=null,previousTime=null;
+  const prior=[],buckets=[3600000,14400000,86400000].map(size=>({size,current:null,previous:null}));
+  return {push(b) {
+    i++;if(start===null)start=b.time;
+    let result=null;
+    const day=londonDay(b.time);
+    if(lastDay!==day){setup=null;occupiedUntil=-1;lastDay=day;}
+    for(const a of buckets){const key=Math.floor(b.time/a.size);if(!a.current||a.current.key!==key){a.previous=a.current;a.current={key,high:b.high,low:b.low};}}
+    if(previousTime!==null && b.time-previousTime!==60000){setup=null;occupiedUntil=-1;}
+    if(!inSession(b.time))setup=null;
+    if(setup && i>setup.expires)setup=null;
+    if(inSession(b.time) && i>occupiedUntil && i>=5){
+      if(setup && i>setup.at){
         setup.extreme=setup.dir===1?Math.min(setup.extreme,b.low):Math.max(setup.extreme,b.high);
         const broken=setup.dir===1?b.close>setup.structure:b.close<setup.structure;
-        const gap=setup.dir===1?b.low>bars[i-2].high:b.high<bars[i-2].low;
-        if(broken && gap) {
-          const limit=setup.dir===1?(b.low+bars[i-2].high)/2:(b.high+bars[i-2].low)/2;
+        const gap=setup.dir===1?b.low>prior.at(-2).high:b.high<prior.at(-2).low;
+        if(broken && gap){
+          const limit=setup.dir===1?(b.low+prior.at(-2).high)/2:(b.high+prior.at(-2).low)/2;
           const targets=setup.levels.filter(v=>setup.dir*(v-limit)>0).sort((a,c)=>Math.abs(a-limit)-Math.abs(c-limit));
-          if(targets.length && i===bars.length-1) result={dir:setup.dir,limit,stop:setup.extreme,target:targets[0],time:b.time};
-          occupiedUntil=i+10; setup=null;
+          if(targets.length)result={dir:setup.dir,limit,stop:setup.extreme,target:targets[0],time:b.time};
+          occupiedUntil=i+10;setup=null;
         }
       }
-      if(!setup && i>occupiedUntil && buckets.every(a=>a.previous) && b.time-bars[0].time>=86400000) {
+      if(!setup && i>occupiedUntil && buckets.every(a=>a.previous) && b.time-start>=86400000){
         const lows=buckets.map(a=>a.previous.low),highs=buckets.map(a=>a.previous.high);
-        const long=lows.some(v=>b.low<v && b.close>v),short=highs.some(v=>b.high>v && b.close<v);
-        if(long!==short) {
-          const prior=bars.slice(i-5,i);
-          setup={dir:long?1:-1,at:i,expires:i+15,extreme:long?b.low:b.high,
-            structure:long?Math.max(...prior.map(v=>v.high)):Math.min(...prior.map(v=>v.low)),levels:[...lows,...highs]};
-        }
+        const long=lows.some(v=>b.low<v&&b.close>v),short=highs.some(v=>b.high>v&&b.close<v);
+        if(long!==short)setup={dir:long?1:-1,at:i,expires:i+15,extreme:long?b.low:b.high,
+          structure:long?Math.max(...prior.map(v=>v.high)):Math.min(...prior.map(v=>v.low)),levels:[...lows,...highs]};
       }
     }
-    for(const a of buckets) {a.current.high=Math.max(a.current.high,b.high);a.current.low=Math.min(a.current.low,b.low);}
-  }
-  const stage=result?'Setup confirmed; checking entry price':!inSession(bars.at(-1).time)?'Outside the entry window':setup?'Sweep detected; waiting for reversal and fair-value gap':bars.length-1<=occupiedUntil?'Previous setup consumed; waiting for a fresh sweep':'Waiting for a price sweep';
-  return {signal:result,stage};
+    for(const a of buckets){a.current.high=Math.max(a.current.high,b.high);a.current.low=Math.min(a.current.low,b.low);}
+    prior.push(b);if(prior.length>5)prior.shift();previousTime=b.time;
+    if(i<1499)return {signal:null,stage:'Building market history'};
+    const stage=result?'Setup confirmed; checking entry price':!inSession(b.time)?'Outside the entry window':setup?'Sweep detected; waiting for reversal and fair-value gap':i<=occupiedUntil?'Previous setup consumed; waiting for a fresh sweep':'Waiting for a price sweep';
+    return {signal:result,stage};
+  }};
 }
-function latestSignal(bars) {return analyze(bars).signal;}
+function analyze(bars){const scanner=createScanner();let result={signal:null,stage:'Building market history'};for(const b of bars)result=scanner.push(b);return result;}
+function latestSignal(bars){return analyze(bars).signal;}
 function orderFor(signal, price, precision=5, now=Date.now()) {
   if(!signal || !price || price.status!=='tradeable' || !inSession(now)) return null;
   const age=now-(signal.time+60000);
@@ -70,4 +68,4 @@ function orderFor(signal, price, precision=5, now=Date.now()) {
     stopLossOnFill:{price:stop.toFixed(precision),timeInForce:'GTC'},
     takeProfitOnFill:{price:target.toFixed(precision),timeInForce:'GTC'}};
 }
-module.exports={londonDay,inSession,analyze,latestSignal,orderFor};
+module.exports={londonDay,inSession,createScanner,analyze,latestSignal,orderFor};

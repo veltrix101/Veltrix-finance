@@ -26,3 +26,6 @@ async function refresh(){
 }
 document.getElementById('refresh').onclick=refresh;
 refresh();setInterval(refresh,30000);
+
+async function refreshResearch(){try{const r=await(await fetch('/api/research',{cache:'no-store',signal:AbortSignal.timeout(15000)})).json();put('research-phase',r.phase+(r.progress&&r.progress<100?' · '+r.progress+'%':''));if(r.result){const d=r.result,t=d.strategy.splits.at(-1);put('research-summary',d.bars.toLocaleString()+' historical candles · '+new Date(d.from).toLocaleDateString()+' to '+new Date(d.to).toLocaleDateString()+'. Holdout trades: '+t.base.trades+'.');put('strategy-verdict',d.strategy.verdict);put('forecast-verdict',d.forecast.verdict+' Forecast does not control trades. '+(d.execution?.message||''));}}catch{put('research-phase','Research status unavailable');}}
+refreshResearch();setInterval(refreshResearch,30000);

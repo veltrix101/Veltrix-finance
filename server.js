@@ -58,7 +58,7 @@ function capacity(orders,trades,pair,units) {
   const active = [...entries,...trades];
   if (active.some(x => !['EUR_USD','GBP_USD'].includes(x.instrument) || x.clientExtensions?.tag !== TAG)) return false;
   const same = active.filter(x => x.instrument === pair);
-  return active.length < 3 && same.length < 2 && same.every(x => units == null || Math.sign(Number(x.currentUnits ?? x.units)) === Math.sign(Number(units)));
+  return same.every(x => units == null || Math.sign(Number(x.currentUnits ?? x.units)) === Math.sign(Number(units)));
 }
 function maySubmit({account,orders,trades,transactions,order,now}) {
   if(!order || account.mt4AccountID || !Number.isFinite(Number(account.NAV)) || Number(account.NAV)<=0 || !Number.isFinite(Number(account.marginAvailable)) || Number(account.marginAvailable)<=0) return false;
@@ -69,7 +69,7 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   return true;
 }
 function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'}),pair='EUR_USD') {
-  let state={version:'1.9.0',scanIntervalSeconds:60,dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+  let state={version:'1.9.0',scanIntervalSeconds:60,concurrentEntryLimit:null,perPairEntryLimit:null,dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const startedAt=Date.now();
   const extendedSession=env.DEMO_EXTENDED_SESSION==='true';

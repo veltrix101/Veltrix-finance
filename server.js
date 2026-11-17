@@ -53,16 +53,23 @@ async function history(api,base,now) {
   }
   return transactions.filter(t=>['LIMIT_ORDER','MARKET_ORDER'].includes(t.type) && [TAG,'mmb-technical-check'].includes(t.clientExtensions?.tag));
 }
+function capacity(orders,trades,pair,units) {
+  const entries = orders.filter(o => !(o.tradeID && ['STOP_LOSS','TAKE_PROFIT','TRAILING_STOP_LOSS','GUARANTEED_STOP_LOSS'].includes(o.type)));
+  const active = [...entries,...trades];
+  if (active.some(x => !['EUR_USD','GBP_USD'].includes(x.instrument) || x.clientExtensions?.tag !== TAG)) return false;
+  const same = active.filter(x => x.instrument === pair);
+  return active.length < 3 && same.length < 2 && same.every(x => units == null || Math.sign(Number(x.currentUnits ?? x.units)) === Math.sign(Number(units)));
+}
 function maySubmit({account,orders,trades,transactions,order,now}) {
   if(!order || account.mt4AccountID || !Number.isFinite(Number(account.NAV)) || Number(account.NAV)<=0 || !Number.isFinite(Number(account.marginAvailable)) || Number(account.marginAvailable)<=0) return false;
   if(!Array.isArray(orders)||!Array.isArray(trades)) throw Error('Incomplete account state');
   // Dedicated demo account: any existing pending order/trade blocks another entry.
-  if(orders.length || trades.length) return false;
+  if(!capacity(orders,trades,order.instrument,order.units)) return false;
   if(transactions.some(t=>t.clientExtensions?.id===order.clientExtensions.id)) return false;
   return true;
 }
-function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'})) {
-  let state={version:'1.8.0',scanIntervalSeconds:60,dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'}),pair='EUR_USD') {
+  let state={version:'1.9.0',scanIntervalSeconds:60,dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const startedAt=Date.now();
   const extendedSession=env.DEMO_EXTENDED_SESSION==='true';
@@ -94,25 +101,25 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       const [{account},{orders},{trades}]=await Promise.all([api(base+'/summary'),api(base+'/pendingOrders'),api(base+'/openTrades')]);
       if(!account || account.mt4AccountID) throw Error('Use a v20 demo account without an MT4 link.');
       if(!Array.isArray(orders)||!Array.isArray(trades)) throw Error('Incomplete broker account state');
-      if(!instrument) {const instruments=await api(base+'/instruments?instruments=EUR_USD');instrument=instruments.instruments?.find(i=>i.name==='EUR_USD');}
+      if(!instrument) {const instruments=await api(base+'/instruments?instruments='+pair);instrument=instruments.instruments?.find(i=>i.name===pair);}
       if(!instrument || !Number.isFinite(Number(instrument.minimumTradeSize)) || Number(instrument.minimumTradeSize)>1 || !Number.isInteger(instrument.displayPrecision) || instrument.displayPrecision<0 || instrument.displayPrecision>10) throw Error('EUR/USD one-unit orders unavailable');
       const checked=Date.now();
       if(Math.floor(checked/60000)!==Math.floor(historyAt/60000)) {transactions=await history(api,base,checked);historyAt=checked;}
       const ordersToday=transactions.filter(t=>londonDay(Date.parse(t.time))===londonDay(checked)).length;
       const previousOrder=transactions.at(-1)?.time;
       state={...state,connected:true,trading:false,pendingOrders:orders.length,openTrades:trades.length,ordersToday,sessionOpen:inSession(checked,extendedSession),lastCheck:new Date().toISOString(),lastOrder:previousOrder||state.lastOrder};
-      refreshResults(base, account.currency, checked);
+      if(pair==='EUR_USD') refreshResults(base, account.currency, checked);
       if(env.BOT_ENABLED==='false') {state.status='Connected. Trading paused in settings.';state.trading=false;return;}
       const lastCached=bars.at(-1);
       const query=lastCached && checked-lastCached.time<3*86400000?`from=${encodeURIComponent(new Date(lastCached.time).toISOString())}&includeFirst=false&count=5000`:'count=5000';
-      const data=await api(`${base}/instruments/EUR_USD/candles?granularity=M1&price=M&${query}`);
+      const data=await api(`${base}/instruments/${pair}/candles?granularity=M1&price=M&${query}`);
       const incoming=parseCandles(data);
       bars=[...new Map([...bars,...incoming].map(b=>[b.time,b])).values()].sort((a,b)=>a.time-b.time).slice(-5000);
       const last=bars.at(-1);
       if(!last) throw Error('No completed candles received');
       state.lastCandle=new Date(last.time).toISOString();
       const now=Date.now();
-      if(orders.length || trades.length) {evaluated=last.time;state.stage='Broker position or order active';state.status=trades.length?'Open trade at OANDA. New entries blocked until it closes.':'Pending order at OANDA. Waiting for its fill or expiry.';return;}
+      if(!capacity(orders,trades,pair,null)) {evaluated=last.time;state.stage='Broker position or order active';state.status=trades.length?'Open trade at OANDA. New entries blocked until it closes.':'Pending order at OANDA. Waiting for its fill or expiry.';return;}
       const policy=readPolicy();
       state.forwardTest=Boolean(policy.forwardTest);
       state.validationStatus=policy.forwardTest?'Unvalidated demo forward test':'Historical validation policy';
@@ -129,11 +136,19 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       state.stage=analysis.stage;
       if(!signal) {state.status=analysis.stage+'.';return;}
       // Re-read broker state/history immediately before submission, never rely on a cached snapshot.
-      const [freshAccount,freshOrders,freshTrades,freshHistory,pricing]=await Promise.all([api(base+'/summary'),api(base+'/pendingOrders'),api(base+'/openTrades'),history(api,base,now),api(base+'/pricing?instruments=EUR_USD')]);
-      const checkedOrder=assessOrder(signal,pricing.prices?.find(p=>p.instrument==='EUR_USD'),instrument.displayPrecision,Date.now(),{extendedSession});
+      const [freshAccount,freshOrders,freshTrades,freshHistory,pricing]=await Promise.all([api(base+'/summary'),api(base+'/pendingOrders'),api(base+'/openTrades'),history(api,base,now),api(base+'/pricing?instruments='+pair)]);
+      const checkedOrder=assessOrder(signal,pricing.prices?.find(p=>p.instrument===pair),instrument.displayPrecision,Date.now(),{extendedSession});
       const order=checkedOrder.order;
       // Scale strategy demo entries only; execution checks remain one unit.
-      if(order) order.units=String(Math.sign(Number(order.units))*1000);
+      if(order) {
+        order.instrument=pair;
+        order.units=String(Math.sign(Number(order.units))*1000);
+        order.positionFill='OPEN_ONLY';
+        if(pair!=='EUR_USD') {
+          order.clientExtensions.id += '-GBP';
+          order.tradeClientExtensions.id += '-GBP';
+        }
+      }
       if(!maySubmit({account:freshAccount.account,orders:freshOrders.orders,trades:freshTrades.trades,transactions:freshHistory,order,now:Date.now()})) {state.stage='Entry blocked';state.status='Setup skipped: '+(checkedOrder.reason||'broker entry limits failed')+'.';return;}
       if(stopping) return;
       // Never retry a POST. An uncertain response halts the bot for manual review.
@@ -184,8 +199,36 @@ function serve(bot) {
     res.writeHead(404);res.end('Not found');
   });
 }
+function createPortfolio(env,transport,policy) {
+  const pairs=['EUR_USD','GBP_USD'];
+  const bots=pairs.map(pair=>createBot(env,transport,policy,pair));
+  let busy=false,stopped=false;
+  return {
+    async tick(){
+      if(busy || stopped) return;
+      busy=true;
+      try {
+        for(const bot of bots) {
+          if(stopped || bots.some(b=>b.status().stage==='Manual broker review required')) break;
+          await bot.tick();
+        }
+      } finally {busy=false;}
+    },
+    stop(){stopped=true;bots.forEach(bot=>bot.stop());},
+    status(){
+      const rows=bots.map(bot=>bot.status());
+      const latest=[...rows].sort((a,b)=>String(b.lastCheck||'').localeCompare(String(a.lastCheck||'')))[0];
+      const alert=rows.find(r=>r.stage==='Manual broker review required') || rows.find(r=>!r.connected);
+      return {...rows[0],connected:rows.every(r=>r.connected),trading:!alert && rows.some(r=>r.trading),
+        pendingOrders:latest.pendingOrders,openTrades:latest.openTrades,ordersToday:latest.ordersToday,
+        lastOrder:rows.map(r=>r.lastOrder).filter(Boolean).sort().at(-1)||null,
+        status:alert?.status || rows.map((r,i)=>pairs[i].replace('_','/')+' · '+r.status).join(' | '),
+        stage:alert?.stage || rows[0].stage,markets:pairs.map((pair,i)=>({pair,stage:rows[i].stage,lastCandle:rows[i].lastCandle}))};
+    }
+  };
+}
 if(require.main===module) {
-  const bot=createBot(process.env,fetch,()=>forwardPolicy(process.env,livePolicy)),server=serve(bot);
+  const bot=createPortfolio(process.env,fetch,()=>forwardPolicy(process.env,livePolicy)),server=serve(bot);
   server.listen(Number(process.env.PORT)||10000,'0.0.0.0',()=>console.log('Demo-only bot service started'));
   if(process.env.DEMO_EXECUTION_CHECK_ID){
     executionCheck={...executionCheck,status:'In progress'};

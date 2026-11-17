@@ -226,7 +226,7 @@ test('An uncertain trade-close write is never automatically retried',async()=>{
   await assert.rejects(api('/v3/accounts/123/trades/42/clientExtensions','PUT',{}),/Blocked/);
 });
 
-test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.8.0');assert.equal(order.units,'1');});
+test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.9.0');assert.equal(order.units,'1');});
 
 test('Closed strategy results attribute entry and exit costs once and exclude test fills', async()=>{
   const {closedResults}=require('./performance');
@@ -259,4 +259,16 @@ test('Forward scanner evaluates consecutive minute breakouts without a cooldown'
   for(let i=0;i<80;i++) push(i,1.1);
   assert.equal(push(80,1.101).signal.dir,1);
   assert.equal(push(81,1.102).signal.dir,1);
+});
+
+test('Multi-pair admission counts entry orders, excludes attached exits and rejects opposing entries',()=>{
+  const trade=pair=>({instrument:pair,currentUnits:'1000',clientExtensions:{tag:'mmb-demo-v1'}});
+  const eur=trade('EUR_USD'),gbp=trade('GBP_USD');
+  const check=(trades,orders=[],units='1000')=>maySubmit({account:{NAV:'100000',marginAvailable:'90000'},orders,trades,transactions:[],order:{instrument:'EUR_USD',units,clientExtensions:{id:'new'}}});
+  assert.equal(check([eur],[{type:'STOP_LOSS',tradeID:'12'}]),true);
+  assert.equal(check([eur,eur]),false);
+  assert.equal(check([gbp,gbp]),true);
+  assert.equal(check([eur,gbp,gbp]),false);
+  assert.equal(check([eur],[],'-1000'),false);
+  assert.equal(check([eur],[{...eur,type:'LIMIT',units:'1000'}]),false);
 });

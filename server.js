@@ -59,10 +59,10 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   // Dedicated demo account: any existing pending order/trade blocks another entry.
   if(orders.length || trades.length) return false;
   if(transactions.some(t=>t.clientExtensions?.id===order.clientExtensions.id)) return false;
-  return transactions.filter(t=>londonDay(Date.parse(t.time))===londonDay(now)).length<2;
+  return true;
 }
 function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'})) {
-  let state={version:'1.5.0',strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+  let state={version:'1.6.0',dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const readyAt=Date.now()+90000;
   const extendedSession=env.DEMO_EXTENDED_SESSION==='true';
@@ -108,7 +108,6 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       if(!['candidate','original'].includes(policy.mode)){evaluated=last.time;state.stage='Strategy validation';state.status=policy.message||'New entries paused until a strategy passes validation.';return;}
       if(now<readyAt) {evaluated=last.time;state.stage='Startup checks';state.status='Connected. Startup checks in progress.';return;}
       if(!inSession(now,extendedSession)) {evaluated=last.time;state.stage='Outside entry window';state.status=extendedSession?'Running. Waiting for weekday forex trading hours.':'Running. New entries wait for weekdays 08:00–11:00 London time.';return;}
-      if(ordersToday>=2) {evaluated=last.time;state.stage='Daily order limit';state.status='Daily limit reached. No new entries until the next London trading day.';return;}
       const age=now-(last.time+60000);
       if(age<0 || age>90000) {state.stage='Waiting for fresh data';state.status='Completed market data is stale or invalid. New orders blocked.';return;}
       state.trading=true;

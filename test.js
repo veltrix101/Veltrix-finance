@@ -31,14 +31,14 @@ test('Reject stale/invalid data, crossed entries, large spreads, bad RR and clos
   assert.equal(orderFor({...signal,target:1.103},quote,5,now),null);
   assert.equal(orderFor(signal,{...quote,asks:[{price:'1.11'}]},5,now),null);
 });
-test('Account/history reconciliation blocks duplicate, third, concurrent and MT4 orders',()=>{
+test('Account/history reconciliation blocks duplicate and concurrent and MT4 orders',()=>{
   const input={account:{NAV:'10000',marginAvailable:'10000'},orders:[],trades:[],transactions:[],order,now};
   assert.equal(maySubmit(input),true);
   assert.equal(maySubmit({...input,orders:[{}]}),false);
   assert.equal(maySubmit({...input,trades:[{}]}),false);
   assert.equal(maySubmit({...input,account:{...input.account,mt4AccountID:'123'}}),false);
   assert.equal(maySubmit({...input,transactions:[{clientExtensions:order.clientExtensions}]}),false);
-  assert.equal(maySubmit({...input,transactions:[{time:new Date(now).toISOString()},{time:new Date(now).toISOString()}]}),false);
+  assert.equal(maySubmit({...input,transactions:[{time:new Date(now).toISOString()},{time:new Date(now).toISOString()}]}),true);
   assert.throws(()=>maySubmit({...input,orders:undefined}));
 });
 test('Client only uses demo origin and never retries ambiguous POST',async()=>{
@@ -140,9 +140,9 @@ test('Status identifies pending orders and open trades instead of claiming no si
   await runScenario({orders:[{}]},async(bot,fake)=>{assert.match(bot.status().status,/Pending order/);assert.equal(bot.status().pendingOrders,1);assert.equal(fake.posts(),0);});
   await runScenario({trades:[{}]},async(bot,fake)=>{assert.match(bot.status().status,/Open trade/);assert.equal(bot.status().openTrades,1);assert.equal(fake.posts(),0);});
 });
-test('History restores daily count after restart and blocks a third entry',async()=>{
+test('History restores daily count after restart without blocking another qualifying entry',async()=>{
   const transactions=[1,2].map(n=>({type:'LIMIT_ORDER',time:new Date(now-n*600000).toISOString(),clientExtensions:{tag:'mmb-demo-v1',id:'old-'+n}}));
-  await runScenario({transactions},async(bot,fake)=>{assert.equal(fake.posts(),0);assert.equal(bot.status().ordersToday,2);assert.ok(bot.status().lastOrder);assert.match(bot.status().status,/Daily limit/);});
+  await runScenario({transactions},async(bot,fake)=>{assert.equal(fake.posts(),1);assert.equal(bot.status().ordersToday,3);assert.ok(bot.status().lastOrder);assert.equal(bot.status().dailyEntryLimit,null);});
 });
 test('Ambiguous submission halts subsequent ticks without retrying the order',async()=>{
   await runScenario({ambiguous:true},async(bot,fake,advance)=>{
@@ -226,4 +226,4 @@ test('An uncertain trade-close write is never automatically retried',async()=>{
   await assert.rejects(api('/v3/accounts/123/trades/42/clientExtensions','PUT',{}),/Blocked/);
 });
 
-test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.5.0');assert.equal(order.units,'1');});
+test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.6.0');assert.equal(order.units,'1');});

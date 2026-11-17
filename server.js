@@ -4,7 +4,7 @@ const {analyze,orderFor,londonDay,inSession}=require('./strategy');
 const ORIGIN='https://api-fxpractice.oanda.com'; // Hardcoded: live accounts cannot be used.
 const TAG='mmb-demo-v1';
 function createClient(token,transport=fetch) {
-  return async function request(path,method='GET',body) {
+  async function once(path,method,body) {
     const url=new URL(path,ORIGIN);
     if(url.origin!==ORIGIN || !url.pathname.startsWith('/v3/')) throw Error('Blocked API address');
     if(!['GET','POST'].includes(method) || (method==='POST' && !/^\/v3\/accounts\/[^/]+\/orders$/.test(url.pathname))) throw Error('Blocked API operation');
@@ -19,6 +19,16 @@ function createClient(token,transport=fetch) {
       e.uncertain=method==='POST' && response.status>=500;throw e;
     }
     return data;
+  }
+  return async function request(path,method='GET',body){
+    for(let attempt=0;;attempt++){
+      try{return await once(path,method,body);}
+      catch(e){
+        const transient=/connection interrupted|response unreadable|request failed \((?:429|5[0-9]{2})\)/.test(e.message);
+        if(method!=='GET'||!transient||attempt>=2)throw e;
+        await new Promise(resolve=>setTimeout(resolve,250*2**attempt));
+      }
+    }
   };
 }
 function parseCandles(data) {
@@ -52,7 +62,7 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   return transactions.filter(t=>londonDay(Date.parse(t.time))===londonDay(now)).length<2;
 }
 function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'})) {
-  let state={version:'1.3.0',mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+  let state={version:'1.3.1',mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const readyAt=Date.now()+90000;
   let accountID=env.OANDA_ACCOUNT_ID||null,busy=false,halted=false,stopping=false;

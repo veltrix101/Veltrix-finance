@@ -81,6 +81,6 @@ function compareCandidates(bars,backtest){
     dataCaveat:'The later dates were previously used to evaluate the original strategy. These are additional retrospective checks, not pristine unseen data. Prospective paper trading is still required.',
     candidates:rows,selectedCandidate:chosen?.id||null,passedInitialChecks:Boolean(passed),
     demoCandidate:passed?chosen.id:null,
-    verdict:passed?'A replacement passed the initial retrospective gates. Eligible only for one-unit forward demo testing; no real-money approval.':'No replacement passed the prespecified gates. New demo entries are paused; research and broker monitoring continue.'};
+    verdict:passed?'A replacement passed the initial retrospective gates. Eligible only for one-unit forward demo testing; no real-money approval.':'No replacement passed the prespecified gates. New demo entries are paused; broker monitoring continues.'};
 }
 module.exports={CANDIDATES,candidateScanner,analyzeCandidate,blockConfidence,passesDevelopment,passesHoldout,compareCandidates};

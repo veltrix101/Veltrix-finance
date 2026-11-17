@@ -182,3 +182,9 @@ test('Valid passive limits inside the spread are accepted without allowing marke
   assert.equal(assessOrder({...inside,limit:1.1041},quote,5,now).reason,'Entry already crossed or stop invalid');
   assert.ok(orderFor({...inside,dir:-1,limit:1.10405,stop:1.106,target:1.1},quote,5,now));
 });
+test('Read-only transient failures retry within a bound; authentication failures do not',async()=>{
+  let reads=0;const api=createClient('fixture',async()=>{reads++;if(reads<3)throw Error('temporary');return {ok:true,json:async()=>({accounts:[]})};});
+  await api('/v3/accounts');assert.equal(reads,3);
+  let denied=0;const rejected=createClient('fixture',async()=>{denied++;return {ok:false,status:401,json:async()=>({})};});
+  await assert.rejects(rejected('/v3/accounts'),/rejected access/);assert.equal(denied,1);
+});

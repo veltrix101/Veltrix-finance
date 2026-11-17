@@ -226,7 +226,7 @@ test('An uncertain trade-close write is never automatically retried',async()=>{
   await assert.rejects(api('/v3/accounts/123/trades/42/clientExtensions','PUT',{}),/Blocked/);
 });
 
-test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.9.0');assert.equal(order.units,'1');});
+test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.9.1');assert.equal(order.units,'1');});
 
 test('Closed strategy results attribute entry and exit costs once and exclude test fills', async()=>{
   const {closedResults}=require('./performance');
@@ -261,15 +261,15 @@ test('Forward scanner evaluates consecutive minute breakouts without a cooldown'
   assert.equal(push(81,1.102).signal.dir,1);
 });
 
-test('Multi-pair admission counts entry orders, excludes attached exits and rejects opposing entries',()=>{
+test('Multi-pair admission allows more than five positions and rejects opposing entries',()=>{
   const trade=pair=>({instrument:pair,currentUnits:'1000',clientExtensions:{tag:'mmb-demo-v1'}});
   const eur=trade('EUR_USD'),gbp=trade('GBP_USD');
   const check=(trades,orders=[],units='1000')=>maySubmit({account:{NAV:'100000',marginAvailable:'90000'},orders,trades,transactions:[],order:{instrument:'EUR_USD',units,clientExtensions:{id:'new'}}});
   assert.equal(check([eur],[{type:'STOP_LOSS',tradeID:'12'}]),true);
   assert.equal(check([eur,eur,eur,eur]),true);
   assert.equal(check([gbp,gbp]),true);
-  assert.equal(check(Array(5).fill(eur)),false);
+  assert.equal(check(Array(8).fill(eur)),true);
   assert.equal(check([eur,gbp,gbp]),true);
   assert.equal(check([eur],[],'-1000'),false);
-  assert.equal(check([eur,eur,gbp,gbp],[{...eur,type:'LIMIT',units:'1000'}]),false);
+  assert.equal(check([eur,eur,gbp,gbp],[{...eur,type:'LIMIT',units:'1000'}]),true);
 });

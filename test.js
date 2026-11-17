@@ -266,9 +266,10 @@ test('Multi-pair admission counts entry orders, excludes attached exits and reje
   const eur=trade('EUR_USD'),gbp=trade('GBP_USD');
   const check=(trades,orders=[],units='1000')=>maySubmit({account:{NAV:'100000',marginAvailable:'90000'},orders,trades,transactions:[],order:{instrument:'EUR_USD',units,clientExtensions:{id:'new'}}});
   assert.equal(check([eur],[{type:'STOP_LOSS',tradeID:'12'}]),true);
-  assert.equal(check([eur,eur]),false);
+  assert.equal(check([eur,eur,eur,eur]),true);
   assert.equal(check([gbp,gbp]),true);
-  assert.equal(check([eur,gbp,gbp]),false);
+  assert.equal(check(Array(5).fill(eur)),false);
+  assert.equal(check([eur,gbp,gbp]),true);
   assert.equal(check([eur],[],'-1000'),false);
-  assert.equal(check([eur],[{...eur,type:'LIMIT',units:'1000'}]),false);
+  assert.equal(check([eur,eur,gbp,gbp],[{...eur,type:'LIMIT',units:'1000'}]),false);
 });

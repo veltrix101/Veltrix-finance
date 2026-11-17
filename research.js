@@ -172,7 +172,7 @@ async function run(progress) {
   const {CANDIDATES, candidateScanner} = require('./candidates');
   const current = CANDIDATES.find(c => c.id === process.env.DEMO_FORWARD_STRATEGY);
   if (current) {
-    const options = {extendedSession:process.env.DEMO_EXTENDED_SESSION === 'true', dailyLimit:Infinity};
+    const options = {extendedSession:process.env.DEMO_EXTENDED_SESSION === 'true', dailyLimit:Infinity, everyMinute:true};
     const start = bars[Math.floor(bars.length * 0.8)].time;
     const end = bars.at(-1).time + 60000;
     const replay = slip => backtest(bars, start, end, slip, () => candidateScanner(current.id, options), options);

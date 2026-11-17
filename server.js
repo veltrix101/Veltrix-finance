@@ -62,9 +62,9 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   return true;
 }
 function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'})) {
-  let state={version:'1.7.0',dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+  let state={version:'1.8.0',scanIntervalSeconds:60,dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
-  const readyAt=Date.now()+90000;
+  const startedAt=Date.now();
   const extendedSession=env.DEMO_EXTENDED_SESSION==='true';
   state.entryWindow=extendedSession?'Weekdays, all forex trading hours':'Weekdays 08:00–11:00 Europe/London';
   let accountID=env.OANDA_ACCOUNT_ID||null,busy=false,halted=false,stopping=false;
@@ -118,14 +118,14 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       state.validationStatus=policy.forwardTest?'Unvalidated demo forward test':'Historical validation policy';
       state.strategy=policy.mode==='candidate'?require('./candidates').CANDIDATES.find(c=>c.id===policy.id)?.name||policy.id:policy.mode==='original'?'Original sweep rules':'Research only — new entries paused';
       if(!['candidate','original'].includes(policy.mode)){evaluated=last.time;state.stage='Strategy validation';state.status=policy.message||'New entries paused until a strategy passes validation.';return;}
-      if(now<readyAt) {evaluated=last.time;state.stage='Startup checks';state.status='Connected. Startup checks in progress.';return;}
+      if(last.time+60000 < startedAt) {evaluated=last.time;state.stage='Scanning';state.status='Connected. Scanning each new one-minute candle.';return;}
       if(!inSession(now,extendedSession)) {evaluated=last.time;state.stage='Outside entry window';state.status=extendedSession?'Running. Waiting for weekday forex trading hours.':'Running. New entries wait for weekdays 08:00–11:00 London time.';return;}
       const age=now-(last.time+60000);
       if(age<0 || age>90000) {state.stage='Waiting for fresh data';state.status='Completed market data is stale or invalid. New orders blocked.';return;}
       state.trading=true;
       if(last.time<=evaluated) return;
       evaluated=last.time;
-      const analysis=policy.mode==='candidate'?require('./candidates').analyzeCandidate(policy.id,bars,{extendedSession}):analyze(bars),signal=analysis.signal;
+      const analysis=policy.mode==='candidate'?require('./candidates').analyzeCandidate(policy.id,bars,{extendedSession,everyMinute:true}):analyze(bars),signal=analysis.signal;
       state.stage=analysis.stage;
       if(!signal) {state.status=analysis.stage+'.';return;}
       // Re-read broker state/history immediately before submission, never rely on a cached snapshot.

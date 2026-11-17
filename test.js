@@ -226,7 +226,7 @@ test('An uncertain trade-close write is never automatically retried',async()=>{
   await assert.rejects(api('/v3/accounts/123/trades/42/clientExtensions','PUT',{}),/Blocked/);
 });
 
-test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.7.0');assert.equal(order.units,'1');});
+test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.8.0');assert.equal(order.units,'1');});
 
 test('Closed strategy results attribute entry and exit costs once and exclude test fills', async()=>{
   const {closedResults}=require('./performance');
@@ -249,4 +249,14 @@ test('Closed strategy results attribute entry and exit costs once and exclude te
     assert.equal(result.worst,-4.25);assert.equal(result.drawdown,4.25);
   }
   assert.equal(fills,4);
+});
+
+test('Forward scanner evaluates consecutive minute breakouts without a cooldown',()=>{
+  const {candidateScanner}=require('./candidates');
+  const scanner=candidateScanner('trend-breakout-20',{extendedSession:true,everyMinute:true});
+  const start=Date.parse('2026-11-17T12:00:00Z');
+  function push(i,close){return scanner.push({time:start+i*60000,open:close,close,high:close+0.00002,low:close-0.00002});}
+  for(let i=0;i<80;i++) push(i,1.1);
+  assert.equal(push(80,1.101).signal.dir,1);
+  assert.equal(push(81,1.102).signal.dir,1);
 });

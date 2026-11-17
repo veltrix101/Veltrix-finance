@@ -16,9 +16,10 @@ function candidateScanner(id,options={}){
     slow=slow===null?b.close:slow+(b.close-slow)*2/61;
     let signal=null,stage='Building indicator history';
     if(prior.length>=80){
-      cooldown=Math.max(0,cooldown-1);stage='Waiting for the next completed five-minute check';
-      // Sample only completed five-minute boundaries, never a partially formed minute.
-      if((b.time+60000)%300000===0&&inSession(b.time,options.extendedSession)&&cooldown===0){
+      cooldown=Math.max(0,cooldown-1);stage='Scanning completed candles';
+      // The legacy comparison uses five-minute boundaries. Forward testing checks each closed minute.
+      const due = options.everyMinute || ((b.time+60000)%300000===0 && cooldown===0);
+      if(due && inSession(b.time,options.extendedSession)){
         const recent=prior.slice(-cfg.lookback),last20=prior.slice(-20);
         const tr=last20.map((v,i)=>Math.max(v.high-v.low,Math.abs(v.high-(i?last20[i-1].close:v.open)),Math.abs(v.low-(i?last20[i-1].close:v.open))));
         const atr=tr.reduce((a,v)=>a+v,0)/tr.length;
@@ -84,3 +85,4 @@ function compareCandidates(bars,backtest){
     verdict:passed?'A replacement passed the initial retrospective gates. Eligible only for one-unit forward demo testing; no real-money approval.':'No replacement passed the prespecified gates. New demo entries are paused; broker monitoring continues.'};
 }
 module.exports={CANDIDATES,candidateScanner,analyzeCandidate,blockConfidence,passesDevelopment,passesHoldout,compareCandidates};
+

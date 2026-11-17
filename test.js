@@ -175,3 +175,10 @@ test('Production validation policy pauses entries even when a valid signal exist
     assert.equal(fake.posts(),0);assert.equal(bot.status().trading,false);assert.equal(bot.status().status,'Validation pending');assert.equal(bot.status().connected,true);
   }finally{Date.now=realNow;}
 });
+test('Valid passive limits inside the spread are accepted without allowing marketable limits',()=>{
+  const {assessOrder}=require('./strategy');
+  const inside={...signal,limit:1.10405,stop:1.102,target:1.109};
+  assert.ok(orderFor(inside,quote,5,now));
+  assert.equal(assessOrder({...inside,limit:1.1041},quote,5,now).reason,'Entry already crossed or stop invalid');
+  assert.ok(orderFor({...inside,dir:-1,limit:1.10405,stop:1.106,target:1.1},quote,5,now));
+});

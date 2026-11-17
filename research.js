@@ -1,7 +1,7 @@
 'use strict';
 // Read-only research worker. Forecasts never select or submit broker orders.
 const {parentPort,isMainThread}=require('node:worker_threads');
-const {createScanner,orderFor,londonDay}=require('./strategy');
+const {createScanner,orderFor,assessOrder,londonDay}=require('./strategy');
 const {createClient}=require('./server');
 const DAY=86400000,HORIZON=5;
 function parseHistory(candles) {
@@ -38,7 +38,7 @@ function summarize(trades,submissions) {
 }
 function backtest(bars,start,end,slippage=0,scannerFactory=createScanner) {
   const scanner=scannerFactory();let pending=null,position=null,signal=null,day=null,count=0,submissions=0;
-  const trades=[];
+  const trades=[];let signals=0;const rejections={};
   const close=(price,b,reason)=>{const exit=price-position.dir*slippage;trades.push({pnl:position.dir*(exit-position.entry),entryTime:position.entryTime,exitTime:b.time,reason});position=null;};
   for(let i=0;i<bars.length && bars[i].time<end;i++){
     const b=bars[i],d=londonDay(b.time),active=b.time>=start;
@@ -47,7 +47,8 @@ function backtest(bars,start,end,slippage=0,scannerFactory=createScanner) {
       // Signal is known only after the preceding candle has closed.
       if(signal&&!pending&&!position&&count<2&&i&&b.time-bars[i-1].time===60000){
         const quote={status:'tradeable',time:new Date(b.time).toISOString(),bids:[{price:String(b.bid.open)}],asks:[{price:String(b.ask.open)}]};
-        const order=orderFor(signal,quote,5,b.time);
+        const checked=assessOrder(signal,quote,5,b.time),order=checked.order;
+        if(!order)rejections[checked.reason]=(rejections[checked.reason]||0)+1;
         if(order){pending={dir:signal.dir,limit:Number(order.price),stop:Number(order.stopLossOnFill.price),target:Number(order.takeProfitOnFill.price),expires:Date.parse(order.gtdTime)};count++;submissions++;}
       }
       if(position){
@@ -73,7 +74,7 @@ function backtest(bars,start,end,slippage=0,scannerFactory=createScanner) {
         }
       }
     }
-    signal=scanner.push(b).signal;
+    signal=scanner.push(b).signal;if(active&&signal)signals++;
     if(b.time<start)signal=null;
   }
   if(position){const b=bars.findLast(b=>b.time<end);close(position.dir===1?b.bid.close:b.ask.close,b,'end of sample');}
@@ -81,7 +82,7 @@ function backtest(bars,start,end,slippage=0,scannerFactory=createScanner) {
   const daily=new Map();
   for(const b of bars)if(b.time>=start&&b.time<end&&new Date(b.time).getUTCDay()%6!==0)daily.set(londonDay(b.time),0);
   for(const trade of trades){const key=londonDay(trade.exitTime);daily.set(key,(daily.get(key)||0)+trade.pnl);}
-  return {...metrics,dailyPnlUSD:[...daily.values()]};
+  return {...metrics,signals,rejections,dailyPnlUSD:[...daily.values()]};
 }
 function featureAt(bars,i) {
   if(i<20)return null;
@@ -128,11 +129,14 @@ function evaluate(model,rows) {
 function study(bars) {
   const first=bars[0].time,last=bars.at(-1).time+60000,cut1=bars[Math.floor(bars.length*.6)].time,cut2=bars[Math.floor(bars.length*.8)].time;
   const rows=samples(bars),training=rows.filter(r=>r.labelTime<cut1),validation=rows.filter(r=>r.time>=cut1&&r.labelTime<cut2),test=rows.filter(r=>r.time>=cut2&&r.labelTime<last);
+  const spreads=bars.map(b=>(b.ask.close-b.bid.close)*10000).sort((a,b)=>a-b);
+  const ranges=bars.map(b=>(b.high-b.low)*10000).sort((a,b)=>a-b);
   const model=train(training),val=evaluate(model,validation),holdout=evaluate(model,test);
   const forecastEvidence=val.samples>=1000&&holdout.samples>=1000&&val.brier<val.baselineBrier&&holdout.brier<holdout.baselineBrier;
   const splits=[['development',first,cut1],['validation',cut1,cut2],['holdout',cut2,last]].map(([name,start,end])=>({name,from:new Date(start).toISOString(),to:new Date(end).toISOString(),base:backtest(bars,start,end,0),stress:backtest(bars,start,end,.0001)}));
   const final=splits.at(-1),strategyEvidence=final.base.trades>=30&&final.base.pnlUSDPerOneEUR>0&&final.stress.pnlUSDPerOneEUR>0;
   return {completedAt:new Date().toISOString(),source:'OANDA historical M1 bid/ask/mid candles',instrument:'EUR_USD',bars:bars.length,from:new Date(first).toISOString(),to:new Date(last).toISOString(),
+    priceDiagnostics:{medianSpreadPips:spreads[Math.floor(spreads.length/2)],medianM1RangePips:ranges[Math.floor(ranges.length/2)]},
     gaps:bars.slice(1).filter((b,i)=>b.time-bars[i].time!==60000).length,
     method:'Chronological 60% development / 20% validation / 20% holdout. Fixed rules; no parameter search. Forecast labels crossing boundaries excluded.',
     strategy:{splits,evidenceSufficient:strategyEvidence,verdict:strategyEvidence?'Initial historical checks passed; forward-demo evidence still required.':'Do not increase size or use real money: holdout trade count or cost-stressed results are insufficient.'},

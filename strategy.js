@@ -47,25 +47,30 @@ function createScanner() {
 }
 function analyze(bars){const scanner=createScanner();let result={signal:null,stage:'Building market history'};for(const b of bars)result=scanner.push(b);return result;}
 function latestSignal(bars){return analyze(bars).signal;}
-function orderFor(signal, price, precision=5, now=Date.now()) {
-  if(!signal || !price || price.status!=='tradeable' || !inSession(now)) return null;
+function assessOrder(signal, price, precision=5, now=Date.now()) {
+  if(!signal || !price || price.status!=='tradeable' || !inSession(now)) return {reason:'No signal, closed session, or unavailable price'};
   const age=now-(signal.time+60000);
   const quoteAge=now-Date.parse(price.time);
-  if(age<0 || age>90000 || !Number.isFinite(quoteAge) || quoteAge< -5000 || quoteAge>15000) return null;
+  if(age<0 || age>90000 || !Number.isFinite(quoteAge) || quoteAge< -5000 || quoteAge>15000) return {reason:'Stale signal or quote'};
   const bid=Number(price.bids?.[0]?.price),ask=Number(price.asks?.[0]?.price);
-  if(!(bid>0 && ask>=bid)) return null;
+  if(!(bid>0 && ask>=bid)) return {reason:'Invalid bid/ask'};
   const round=v=>Number(v.toFixed(precision));
   const entry=round(signal.limit), stop=round(signal.stop),target=round(signal.target);
   const risk=signal.dir*(entry-stop),reward=signal.dir*(target-entry),spread=ask-bid;
-  if(!(risk>0 && reward>0) || (reward-spread)/(risk+spread)<1.5 || spread>risk*.2) return null;
-  if(signal.dir===1 ? entry>=bid || stop>=bid : entry<=ask || stop<=ask) return null;
+  if(!(risk>0 && reward>0))return {reason:'Invalid stop or target'};
+  if(spread>risk*.2)return {reason:'Spread too large for stop distance'};
+  if((reward-spread)/(risk+spread)<1.5)return {reason:'Insufficient net reward/risk'};
+  // A passive buy limit must be below the ask; a sell limit must be above the bid.
+  // Inside-spread limits are valid. Stops must remain beyond the entry and current exit-side quote.
+  if(signal.dir===1 ? entry>=ask || stop>=Math.min(entry,bid) : entry<=bid || stop<=Math.max(entry,ask)) return {reason:'Entry already crossed or stop invalid'};
   const expires=signal.time+11*60000;
-  if(expires<=now) return null;
+  if(expires<=now) return {reason:'Entry expired'};
   const id=`mmb-${signal.time}-${signal.dir===1?'L':'S'}`;
-  return {type:'LIMIT',instrument:'EUR_USD',units:String(signal.dir),price:entry.toFixed(precision),
+  return {reason:null,order:{type:'LIMIT',instrument:'EUR_USD',units:String(signal.dir),price:entry.toFixed(precision),
     timeInForce:'GTD',gtdTime:new Date(expires).toISOString(),positionFill:'DEFAULT',
     clientExtensions:{id,tag:'mmb-demo-v1'},tradeClientExtensions:{id:`${id}-trade`,tag:'mmb-demo-v1'},
     stopLossOnFill:{price:stop.toFixed(precision),timeInForce:'GTC'},
-    takeProfitOnFill:{price:target.toFixed(precision),timeInForce:'GTC'}};
+    takeProfitOnFill:{price:target.toFixed(precision),timeInForce:'GTC'}}};
 }
-module.exports={londonDay,inSession,createScanner,analyze,latestSignal,orderFor};
+function orderFor(signal,price,precision=5,now=Date.now()){return assessOrder(signal,price,precision,now).order||null;}
+module.exports={londonDay,inSession,createScanner,analyze,latestSignal,assessOrder,orderFor};

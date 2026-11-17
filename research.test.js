@@ -62,3 +62,12 @@ test('Block-bootstrap intervals are deterministic and detect a consistently nega
   const daily=Array(30).fill(-.001),a=blockConfidence(daily),b=blockConfidence(daily);
   assert.deepEqual(a,b);assert.ok(a.upper<0);assert.equal(a.days,30);assert.equal(blockConfidence([1]).lower,null);
 });
+test('Breakout candidates actually generate executable orders on a causal trending fixture',()=>{
+  const {assessOrder}=require('./strategy');const scan=candidateScanner('trend-breakout-20');let accepted=0;
+  for(let i=0;i<1000;i++){
+    const time=Date.parse('2026-11-17T00:00:00Z')+i*60000,open=1.1+i*.00002,close=open+.00002;
+    const r=scan.push({time,open,close,high:close+.00001,low:open-.00001});
+    if(r.signal){const q={status:'tradeable',time:new Date(time+60000).toISOString(),bids:[{price:close-.00001}],asks:[{price:close+.00001}]};if(assessOrder(r.signal,q,5,time+60000).order)accepted++;}
+  }
+  assert.ok(accepted>0);
+});

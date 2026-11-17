@@ -1,14 +1,14 @@
 'use strict';
 // Explicit sweep -> structure break + FVG interpretation, completed M1 bars only.
-function londonDay(time) {
-  return new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(time));
-}
+const dayFormat=new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'});
+const sessionFormat=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',weekday:'short',hour:'2-digit',hourCycle:'h23'});
+function londonDay(time) {return dayFormat.format(new Date(time));}
 function inSession(time) {
-  const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',weekday:'short',hour:'2-digit',hourCycle:'h23'}).formatToParts(new Date(time)).map(p=>[p.type,p.value]));
+  const parts=Object.fromEntries(sessionFormat.formatToParts(new Date(time)).map(p=>[p.type,p.value]));
   return !['Sat','Sun'].includes(parts.weekday) && Number(parts.hour)>=8 && Number(parts.hour)<11;
 }
-function latestSignal(bars) {
-  if(bars.length<1500) return null;
+function analyze(bars) {
+  if(bars.length<1500) return {signal:null,stage:'Building market history'};
   let setup=null, occupiedUntil=-1, lastDay=null, result=null;
   const buckets=[3600000,14400000,86400000].map(size=>({size,current:null,previous:null}));
   for(let i=0;i<bars.length;i++) {
@@ -45,8 +45,10 @@ function latestSignal(bars) {
     }
     for(const a of buckets) {a.current.high=Math.max(a.current.high,b.high);a.current.low=Math.min(a.current.low,b.low);}
   }
-  return result;
+  const stage=result?'Setup confirmed; checking entry price':!inSession(bars.at(-1).time)?'Outside the entry window':setup?'Sweep detected; waiting for reversal and fair-value gap':bars.length-1<=occupiedUntil?'Previous setup consumed; waiting for a fresh sweep':'Waiting for a price sweep';
+  return {signal:result,stage};
 }
+function latestSignal(bars) {return analyze(bars).signal;}
 function orderFor(signal, price, precision=5, now=Date.now()) {
   if(!signal || !price || price.status!=='tradeable' || !inSession(now)) return null;
   const age=now-(signal.time+60000);
@@ -57,7 +59,7 @@ function orderFor(signal, price, precision=5, now=Date.now()) {
   const round=v=>Number(v.toFixed(precision));
   const entry=round(signal.limit), stop=round(signal.stop),target=round(signal.target);
   const risk=signal.dir*(entry-stop),reward=signal.dir*(target-entry),spread=ask-bid;
-  if(!(risk>0 && reward>0) || reward/(risk+spread)<1.5 || spread>risk*.2) return null;
+  if(!(risk>0 && reward>0) || (reward-spread)/(risk+spread)<1.5 || spread>risk*.2) return null;
   if(signal.dir===1 ? entry>=bid || stop>=bid : entry<=ask || stop<=ask) return null;
   const expires=signal.time+11*60000;
   if(expires<=now) return null;
@@ -68,4 +70,4 @@ function orderFor(signal, price, precision=5, now=Date.now()) {
     stopLossOnFill:{price:stop.toFixed(precision),timeInForce:'GTC'},
     takeProfitOnFill:{price:target.toFixed(precision),timeInForce:'GTC'}};
 }
-module.exports={londonDay,inSession,latestSignal,orderFor};
+module.exports={londonDay,inSession,analyze,latestSignal,orderFor};

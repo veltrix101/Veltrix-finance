@@ -1,7 +1,7 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {inSession,latestSignal,orderFor}=require('./strategy');
+const {inSession,analyze,latestSignal,orderFor}=require('./strategy');
 const {createClient,parseCandles,history,maySubmit,createBot,serve}=require('./server');
 const now=Date.parse('2026-11-17T08:03:10Z');
 const signal={dir:1,time:now-70000,limit:1.10225,stop:1.099,target:1.12};
@@ -105,4 +105,65 @@ test('Missing token is inert and public HTTP cannot change state or expose sourc
   const root='http://127.0.0.1:'+server.address().port;
   try {assert.equal((await fetch(root+'/health')).status,200);assert.equal((await fetch(root+'/server.js')).status,404);assert.equal((await fetch(root+'/api/status',{method:'POST'})).status,405);}
   finally {await new Promise(r=>server.close(r));}
+});
+function scenario(options={}) {
+  let bars=fixture().slice(0,-1),posts=0;
+  const requests=[];
+  const transport=async(url,opts)=>{
+    requests.push(url.pathname+url.search);let data;
+    if(url.pathname==='/v3/accounts')data={accounts:[{id:'101-001-1234567-001'}]};
+    else if(url.pathname.endsWith('/summary'))data={account:{NAV:'10000',marginAvailable:'10000'}};
+    else if(url.pathname.endsWith('/instruments'))data={instruments:[{name:'EUR_USD',minimumTradeSize:'1',displayPrecision:5}]};
+    else if(url.pathname.endsWith('/candles'))data={candles:bars.map(b=>({time:new Date(b.time).toISOString(),complete:true,mid:{o:String(b.open),h:String(b.high),l:String(b.low),c:String(b.close)}}))};
+    else if(url.pathname.endsWith('/pendingOrders'))data={orders:options.orders||[]};
+    else if(url.pathname.endsWith('/openTrades'))data={trades:options.trades||[]};
+    else if(url.pathname.endsWith('/transactions'))data={pages:options.transactions?.length?['https://api-fxpractice.oanda.com/v3/accounts/101-001-1234567-001/transactions/idrange']:[]};
+    else if(url.pathname.endsWith('/transactions/idrange'))data={transactions:options.transactions};
+    else if(url.pathname.endsWith('/pricing'))data={prices:[quote]};
+    else if(url.pathname.endsWith('/orders')&&opts.method==='POST'){
+      posts++;if(options.ambiguous)throw Error('Network disconnected');
+      data={orderCreateTransaction:{id:'123'}};
+    } else throw Error('Unexpected endpoint');
+    return {ok:true,json:async()=>data};
+  };
+  return {transport,advance:()=>{bars=fixture();},posts:()=>posts,requests};
+}
+async function runScenario(options,check){
+  const realNow=Date.now;let clock=now-120000;Date.now=()=>clock;
+  try{
+    const fake=scenario(options),bot=createBot({OANDA_DEMO_TOKEN:'never-display-this'},fake.transport);
+    await bot.tick();clock=now;fake.advance();await bot.tick();
+    await check(bot,fake,()=>{clock+=30000;});
+  }finally{Date.now=realNow;}
+}
+test('Status identifies pending orders and open trades instead of claiming no signal',async()=>{
+  await runScenario({orders:[{}]},async(bot,fake)=>{assert.match(bot.status().status,/Pending order/);assert.equal(bot.status().pendingOrders,1);assert.equal(fake.posts(),0);});
+  await runScenario({trades:[{}]},async(bot,fake)=>{assert.match(bot.status().status,/Open trade/);assert.equal(bot.status().openTrades,1);assert.equal(fake.posts(),0);});
+});
+test('History restores daily count after restart and blocks a third entry',async()=>{
+  const transactions=[1,2].map(n=>({type:'LIMIT_ORDER',time:new Date(now-n*600000).toISOString(),clientExtensions:{tag:'mmb-demo-v1',id:'old-'+n}}));
+  await runScenario({transactions},async(bot,fake)=>{assert.equal(fake.posts(),0);assert.equal(bot.status().ordersToday,2);assert.ok(bot.status().lastOrder);assert.match(bot.status().status,/Daily limit/);});
+});
+test('Ambiguous submission halts subsequent ticks without retrying the order',async()=>{
+  await runScenario({ambiguous:true},async(bot,fake,advance)=>{
+    assert.equal(fake.posts(),1);assert.match(bot.status().status,/outcome uncertain/);
+    advance();await bot.tick();assert.equal(fake.posts(),1);assert.equal(bot.status().trading,false);
+  });
+});
+test('Incremental polling preserves signal and stable status; stop prevents further calls',async()=>{
+  await runScenario({},async(bot,fake)=>{
+    assert.equal(fake.posts(),1);const before=bot.status().status;
+    await bot.tick();assert.equal(fake.posts(),1);assert.equal(bot.status().status,before);
+    assert.ok(fake.requests.some(r=>r.includes('includeFirst=false')));
+    assert.equal(fake.requests.filter(r=>r.endsWith('/instruments?instruments=EUR_USD')).length,1);
+    const count=fake.requests.length;bot.stop();await bot.tick();assert.equal(fake.requests.length,count);assert.equal(bot.status().trading,false);
+  });
+});
+test('Invalid margin and marginal reward after spread fail closed; diagnostics identify sweep',()=>{
+  assert.equal(maySubmit({account:{NAV:'10000'},orders:[],trades:[],transactions:[],order,now}),false);
+  const smallRisk={...signal,limit:1.102,stop:1.101,target:1.1037};
+  const p={...quote,bids:[{price:'1.1040'}],asks:[{price:'1.1041'}]};
+  assert.equal(orderFor(smallRisk,p,5,now),null);
+  assert.equal(analyze([]).stage,'Building market history');
+  assert.match(analyze(fixture().slice(0,-1)).stage,/Sweep detected/);
 });

@@ -51,8 +51,8 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   if(transactions.some(t=>t.clientExtensions?.id===order.clientExtensions.id)) return false;
   return transactions.filter(t=>londonDay(Date.parse(t.time))===londonDay(now)).length<2;
 }
-function createBot(env=process.env,transport=fetch) {
-  let state={version:'1.2.0',mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'})) {
+  let state={version:'1.3.0',mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const readyAt=Date.now()+90000;
   let accountID=env.OANDA_ACCOUNT_ID||null,busy=false,halted=false,stopping=false;
@@ -89,6 +89,9 @@ function createBot(env=process.env,transport=fetch) {
       state.lastCandle=new Date(last.time).toISOString();
       const now=Date.now();
       if(orders.length || trades.length) {evaluated=last.time;state.stage='Broker position or order active';state.status=trades.length?'Open trade at OANDA. New entries blocked until it closes.':'Pending order at OANDA. Waiting for its fill or expiry.';return;}
+      const policy=readPolicy();
+      state.strategy=policy.mode==='candidate'?policy.id:policy.mode==='original'?'Original sweep rules':'Research only — new entries paused';
+      if(!['candidate','original'].includes(policy.mode)){evaluated=last.time;state.stage='Strategy validation';state.status=policy.message||'New entries paused until a strategy passes validation.';return;}
       if(now<readyAt) {evaluated=last.time;state.stage='Startup checks';state.status='Connected. Startup checks in progress.';return;}
       if(!inSession(now)) {evaluated=last.time;state.stage='Outside entry window';state.status='Running. New entries wait for weekdays 08:00–11:00 London time.';return;}
       if(ordersToday>=2) {evaluated=last.time;state.stage='Daily order limit';state.status='Daily limit reached. No new entries until the next London trading day.';return;}
@@ -97,7 +100,7 @@ function createBot(env=process.env,transport=fetch) {
       state.trading=true;
       if(last.time<=evaluated) return;
       evaluated=last.time;
-      const analysis=analyze(bars),signal=analysis.signal;
+      const analysis=policy.mode==='candidate'?require('./candidates').analyzeCandidate(policy.id,bars):analyze(bars),signal=analysis.signal;
       state.stage=analysis.stage;
       if(!signal) {state.status=analysis.stage+'.';return;}
       // Re-read broker state/history immediately before submission, never rely on a cached snapshot.
@@ -122,6 +125,7 @@ const path=require('node:path');
 const PAGE=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const STATUS_SCRIPT=fs.readFileSync(path.join(__dirname,'status.js'),'utf8');
 let researchState={phase:'Not started',progress:0,result:null};
+let livePolicy={mode:'research',message:'Comparing strategy candidates. New entries are paused during validation.'};
 function serve(bot) {
   return http.createServer((req,res)=>{
     res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
@@ -137,7 +141,7 @@ function serve(bot) {
   });
 }
 if(require.main===module) {
-  const bot=createBot(),server=serve(bot);
+  const bot=createBot(process.env,fetch,()=>livePolicy),server=serve(bot);
   server.listen(Number(process.env.PORT)||10000,'0.0.0.0',()=>console.log('Demo-only bot service started'));
   bot.tick();const timer=setInterval(()=>bot.tick(),30000);
   // Research is isolated from order monitoring and sends only read requests.
@@ -145,10 +149,14 @@ if(require.main===module) {
   const researchTimer=setTimeout(()=>{
     const {Worker}=require('node:worker_threads');
     researchState.phase='Starting read-only historical study';
-    researcher=new Worker(path.join(__dirname,'research.js'));
+    researcher=new Worker(path.join(__dirname,'research.js'),{resourceLimits:{maxOldGenerationSizeMb:320}});
     researcher.on('message',message=>{
       if(message.type==='progress')researchState={...researchState,phase:message.phase,progress:message.progress};
-      if(message.type==='complete')researchState={phase:'Study complete',progress:100,result:message.result};
+      if(message.type==='complete'){
+        researchState={phase:'Study complete',progress:100,result:message.result};
+        const id=message.result.redesign?.demoCandidate;
+        livePolicy=id?{mode:'candidate',id}:{mode:'paused',message:'New entries paused: no replacement strategy passed the validation gates. Broker monitoring continues.'};
+      }
       if(message.type==='failed')researchState={...researchState,phase:message.message,progress:0};
     });
     researcher.on('error',()=>{researchState.phase='Historical study failed; trading was not changed.';});

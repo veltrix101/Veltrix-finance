@@ -18,7 +18,7 @@ function parseHistory(candles) {
   });
 }
 async function download(get,account,now,progress=()=>{}) {
-  const end=Math.floor(now/60000)*60000,start=Math.floor((end-90*DAY)/DAY)*DAY,rows=new Map();
+  const end=Math.floor(now/60000)*60000,start=Math.floor((end-180*DAY)/DAY)*DAY,rows=new Map();
   for(let from=start;from<end;from+=3*DAY){
     const to=Math.min(from+3*DAY,end);
     const query=new URLSearchParams({granularity:'M1',price:'MBA',from:new Date(from).toISOString(),to:new Date(to).toISOString()});
@@ -36,8 +36,8 @@ function summarize(trades,submissions) {
   for(const t of trades){pnl+=t.pnl;peak=Math.max(peak,pnl);drawdown=Math.max(drawdown,peak-pnl);if(t.pnl>0){wins++;grossProfit+=t.pnl;}else grossLoss-=t.pnl;}
   return {submissions,trades:trades.length,wins,winRate:trades.length?wins/trades.length:null,pnlUSDPerOneEUR:pnl,meanPnlUSD:trades.length?pnl/trades.length:null,profitFactor:grossLoss?grossProfit/grossLoss:null,maxClosedTradeDrawdownUSD:drawdown};
 }
-function backtest(bars,start,end,slippage=0) {
-  const scanner=createScanner();let pending=null,position=null,signal=null,day=null,count=0,submissions=0;
+function backtest(bars,start,end,slippage=0,scannerFactory=createScanner) {
+  const scanner=scannerFactory();let pending=null,position=null,signal=null,day=null,count=0,submissions=0;
   const trades=[];
   const close=(price,b,reason)=>{const exit=price-position.dir*slippage;trades.push({pnl:position.dir*(exit-position.entry),entryTime:position.entryTime,exitTime:b.time,reason});position=null;};
   for(let i=0;i<bars.length && bars[i].time<end;i++){
@@ -77,7 +77,11 @@ function backtest(bars,start,end,slippage=0) {
     if(b.time<start)signal=null;
   }
   if(position){const b=bars.findLast(b=>b.time<end);close(position.dir===1?b.bid.close:b.ask.close,b,'end of sample');}
-  return summarize(trades,submissions);
+  const metrics=summarize(trades,submissions);
+  const daily=new Map();
+  for(const b of bars)if(b.time>=start&&b.time<end&&new Date(b.time).getUTCDay()%6!==0)daily.set(londonDay(b.time),0);
+  for(const trade of trades){const key=londonDay(trade.exitTime);daily.set(key,(daily.get(key)||0)+trade.pnl);}
+  return {...metrics,dailyPnlUSD:[...daily.values()]};
 }
 function featureAt(bars,i) {
   if(i<20)return null;
@@ -133,7 +137,7 @@ function study(bars) {
     method:'Chronological 60% development / 20% validation / 20% holdout. Fixed rules; no parameter search. Forecast labels crossing boundaries excluded.',
     strategy:{splits,evidenceSufficient:strategyEvidence,verdict:strategyEvidence?'Initial historical checks passed; forward-demo evidence still required.':'Do not increase size or use real money: holdout trade count or cost-stressed results are insufficient.'},
     forecast:{model:'L2 logistic regression',horizonMinutes:HORIZON,trainingSamples:training.length,validation:val,holdout,beatsBaseline:forecastEvidence,controlsTrades:false,verdict:forecastEvidence?'Lower Brier score than a fixed training-frequency forecast in both later splits. Not yet proven useful for trading.':'No consistent predictive improvement established; forecast is excluded from trading decisions.'},
-    limitations:['OHLC cannot establish tick-by-tick execution; entry/stop ambiguity is scored adversely.','Bid/ask spread is included. Stress adds one pip per side. Commissions and overnight financing are not modeled.','Fixed one-EUR-unit P/L is in USD quote currency, not the account home currency or expected income.','Five-minute forecast labels overlap, so example count is not independent sample size.','One 90-day study cannot prove profitability or performance in other market regimes.','Actual OANDA demo order acceptance and fill remain a separate validation requirement.']};
+    limitations:['OHLC cannot establish tick-by-tick execution; entry/stop ambiguity is scored adversely.','Bid/ask spread is included. Stress adds one pip per side. Commissions and overnight financing are not modeled.','Fixed one-EUR-unit P/L is in USD quote currency, not the account home currency or expected income.','Five-minute forecast labels overlap, so example count is not independent sample size.','One 180-day study cannot prove profitability or performance in other market regimes.','Actual OANDA demo order acceptance and fill remain a separate validation requirement.']};
 }
 async function executionEvidence(api,account,now){
   const base='/v3/accounts/'+account;
@@ -155,8 +159,12 @@ async function run(progress) {
   if(!account){const data=await api('/v3/accounts');if(data.accounts?.length!==1)throw Error('Select one demo account before research');account=data.accounts[0].id;}
   if(!/^[0-9-]{3,40}$/.test(account))throw Error('Invalid demo account');
   const bars=await download(path=>api(path),account,Date.now(),progress);
-  progress({phase:'Testing fixed strategy and out-of-sample forecast',progress:96});
+  progress({phase:'Comparing fixed candidate strategies on development and validation periods',progress:96});
+  const {compareCandidates}=require('./candidates');
+  const redesign=compareCandidates(bars,backtest);
+  progress({phase:'Checking probability forecast and broker execution history',progress:99});
   const result=study(bars);
+  result.redesign=redesign;
   result.execution=await executionEvidence(path=>api(path),account,Date.now());
   return result;
 }

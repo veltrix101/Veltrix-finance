@@ -167,3 +167,11 @@ test('Invalid margin and marginal reward after spread fail closed; diagnostics i
   assert.equal(analyze([]).stage,'Building market history');
   assert.match(analyze(fixture().slice(0,-1)).stage,/Sweep detected/);
 });
+test('Production validation policy pauses entries even when a valid signal exists',async()=>{
+  const realNow=Date.now;let clock=now-120000;Date.now=()=>clock;
+  try{
+    const fake=scenario({}),bot=createBot({OANDA_DEMO_TOKEN:'fixture-only'},fake.transport,()=>({mode:'research',message:'Validation pending'}));
+    await bot.tick();clock=now;fake.advance();await bot.tick();
+    assert.equal(fake.posts(),0);assert.equal(bot.status().trading,false);assert.equal(bot.status().status,'Validation pending');assert.equal(bot.status().connected,true);
+  }finally{Date.now=realNow;}
+});

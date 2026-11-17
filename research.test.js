@@ -37,3 +37,28 @@ test('Forecast probabilities are bounded and evaluated against a training-freque
   assert.ok(metrics.brier<metrics.baselineBrier);assert.equal(metrics.samples,300);
   assert.ok(model.predict([1e8])<=1&&model.predict([-1e8])>=0);
 });
+const {candidateScanner,analyzeCandidate,blockConfidence,passesDevelopment,passesHoldout,compareCandidates}=require('./candidates');
+test('Candidate indicators are causal and a gap resets their warm-up',()=>{
+  const bars=fixture(),scanner=candidateScanner('trend-breakout-20');let got;
+  for(let i=0;i<bars.length-1;i++)got=scanner.push(bars[i]);
+  assert.deepEqual(got,analyzeCandidate('trend-breakout-20',bars.slice(0,-1)));
+  const future={...bars.at(-1),time:bars.at(-1).time+3600000};
+  assert.equal(scanner.push(future).signal,null);assert.equal(scanner.push({...future,time:future.time+60000}).stage,'Building indicator history');
+});
+test('Positive results on development alone cannot enable a candidate',()=>{
+  const metrics={trades:25,profitFactor:1.5,pnlUSDPerOneEUR:.01,meanPnlUSD:.0004};
+  const row={development:{base:metrics,stress:metrics},validation:{base:metrics,stress:{...metrics,pnlUSDPerOneEUR:-.001}}};
+  assert.equal(passesDevelopment(row),false);assert.equal(passesHoldout(row),false);
+  row.validation.stress=metrics;assert.equal(passesDevelopment(row),true);assert.equal(passesHoldout(row),false);
+  row.holdout={base:metrics,stress:metrics};row.confidence={lower:-.0001};assert.equal(passesHoldout(row),false);
+  row.confidence.lower=.0001;assert.equal(passesHoldout(row),true);
+});
+test('Candidate selection never opens holdouts when development/validation gates fail',()=>{
+  let count=0;const result=compareCandidates(fixture(),()=>{count++;return {trades:0,profitFactor:null,pnlUSDPerOneEUR:0,meanPnlUSD:null,dailyPnlUSD:[]};});
+  assert.equal(count,12);assert.equal(result.demoCandidate,null);assert.equal(result.passedInitialChecks,false);
+  assert.ok(result.candidates.every(c=>!c.holdout));
+});
+test('Block-bootstrap intervals are deterministic and detect a consistently negative sample',()=>{
+  const daily=Array(30).fill(-.001),a=blockConfidence(daily),b=blockConfidence(daily);
+  assert.deepEqual(a,b);assert.ok(a.upper<0);assert.equal(a.days,30);assert.equal(blockConfidence([1]).lower,null);
+});

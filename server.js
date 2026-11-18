@@ -54,7 +54,7 @@ async function history(api,base,now) {
   return transactions.filter(t=>['LIMIT_ORDER','MARKET_ORDER'].includes(t.type) && [TAG,'mmb-technical-check'].includes(t.clientExtensions?.tag));
 }
 const DEMO_PAIRS=['EUR_USD','GBP_USD','AUD_USD'];
-const FORWARD_SPREAD_LIMIT=0.10;
+const FORWARD_SPREAD_LIMIT=0.125;
 function capacity(orders,trades,pair,units) {
   const entries = orders.filter(o => !(o.tradeID && ['STOP_LOSS','TAKE_PROFIT','TRAILING_STOP_LOSS','GUARANTEED_STOP_LOSS'].includes(o.type)));
   const active = [...entries,...trades];
@@ -146,7 +146,7 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
         const spread=Number(quote.asks[0].price)-Number(quote.bids[0].price);
         const risk=Math.abs(Number(order.price)-Number(order.stopLossOnFill.price));
         if(spread>risk*FORWARD_SPREAD_LIMIT+1e-12){
-          state.stage='Entry blocked';state.status='Setup skipped: spread exceeds 10% of stop distance.';return;
+          state.stage='Entry blocked';state.status=`Setup skipped: spread exceeds ${FORWARD_SPREAD_LIMIT*100}% of stop distance.`;return;
         }
       }
       // Scale strategy demo entries only; execution checks remain one unit.

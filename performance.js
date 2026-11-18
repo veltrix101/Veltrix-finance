@@ -10,7 +10,7 @@ function amount(value) {
 async function closedResults(api, base, currency, cache) {
   const {trades} = await api(base + '/trades?state=CLOSED&count=100');
   if (!Array.isArray(trades)) throw Error('Missing broker history');
-  const selected = trades.filter(t => t.state === 'CLOSED' && ['EUR_USD','GBP_USD'].includes(t.instrument)
+  const selected = trades.filter(t => t.state === 'CLOSED' && ['EUR_USD','GBP_USD','AUD_USD'].includes(t.instrument)
     && Math.abs(Number(t.initialUnits)) === 1000 && t.clientExtensions?.tag === 'mmb-demo-v1');
   selected.sort((a,b) => Date.parse(a.closeTime) - Date.parse(b.closeTime));
   let net = 0, peak = 0, drawdown = 0, worst = 0, wins = 0;

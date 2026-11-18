@@ -226,7 +226,7 @@ test('An uncertain trade-close write is never automatically retried',async()=>{
   await assert.rejects(api('/v3/accounts/123/trades/42/clientExtensions','PUT',{}),/Blocked/);
 });
 
-test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.10.1');assert.equal(order.units,'1');});
+test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.10.2');assert.equal(order.units,'1');});
 
 test('Closed strategy results attribute entry and exit costs once and exclude test fills', async()=>{
   const {closedResults}=require('./performance');

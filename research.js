@@ -47,7 +47,15 @@ function backtest(bars,start,end,slippage=0,scannerFactory=createScanner, option
       // Signal is known only after the preceding candle has closed.
       if(signal&&!pending&&!position&&count<(options.dailyLimit ?? 2)&&i&&b.time-bars[i-1].time===60000){
         const quote={status:'tradeable',time:new Date(b.time).toISOString(),bids:[{price:String(b.bid.open)}],asks:[{price:String(b.ask.open)}]};
-        const checked=assessOrder(signal,quote,5,b.time,options),order=checked.order;
+        const checked=assessOrder(signal,quote,5,b.time,options);
+        let {order}=checked;
+        if(order && options.maxSpreadToRisk!==undefined){
+          const risk=Math.abs(Number(order.price)-Number(order.stopLossOnFill.price));
+          if(b.ask.open-b.bid.open>risk*options.maxSpreadToRisk+1e-12){
+            checked.reason='Spread exceeds replay limit';
+            order=null;
+          }
+        }
         if(!order)rejections[checked.reason]=(rejections[checked.reason]||0)+1;
         if(order){pending={dir:signal.dir,limit:Number(order.price),stop:Number(order.stopLossOnFill.price),target:Number(order.takeProfitOnFill.price),expires:Date.parse(order.gtdTime)};count++;submissions++;}
       }
@@ -175,8 +183,14 @@ async function run(progress) {
     const options = {extendedSession:process.env.DEMO_EXTENDED_SESSION === 'true', dailyLimit:Infinity, everyMinute:true};
     const start = bars[Math.floor(bars.length * 0.8)].time;
     const end = bars.at(-1).time + 60000;
-    const replay = slip => backtest(bars, start, end, slip, () => candidateScanner(current.id, options), options);
+    const replay = (slip, replayOptions=options) => backtest(bars, start, end, slip, () => candidateScanner(current.id, options), replayOptions);
     result.currentReplay = {strategy:current.name, start, end, base:replay(0), stress:replay(0.0001)};
+    const maxSpreadToRisk=0.10;
+    const tighter={...options,maxSpreadToRisk};
+    result.spreadFilterReplay={
+      instrument:'EUR_USD', maxSpreadToRisk, start, end,
+      base:replay(0,tighter), stress:replay(0.0001,tighter)
+    };
   }
   result.execution=await executionEvidence(path=>api(path),account,Date.now());
   return result;

@@ -21,7 +21,7 @@ async function refresh(){
     const p = s.performance;
     let summary = 'Checking closed trades…';
     if (p?.unavailable) summary = 'Broker results temporarily unavailable.';
-    else if (p?.count === 0) summary = 'No closed 1,000-unit strategy trades yet.';
+    else if (p?.count === 0) summary = 'No closed strategy trades yet.';
     else if (p?.count > 0) {
       const money = n => new Intl.NumberFormat('en-CA',{style:'currency',currency:p.currency}).format(n);
       summary = p.count+' closed · Net '+money(p.net)+' '+p.currency+' · Wins '+p.wins+'/'+p.count+

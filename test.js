@@ -32,7 +32,7 @@ test('Reject stale/invalid data, crossed entries, large spreads, bad RR and clos
   assert.equal(orderFor(signal,{...quote,asks:[{price:'1.11'}]},5,now),null);
 });
 test('Account/history reconciliation blocks duplicate and concurrent and MT4 orders',()=>{
-  const input={account:{NAV:'10000',marginAvailable:'10000'},orders:[],trades:[],transactions:[],order,now};
+  const input={account:{NAV:'10000',marginAvailable:'10000',currency:'USD'},orders:[],trades:[],transactions:[],order,now};
   assert.equal(maySubmit(input),true);
   assert.equal(maySubmit({...input,orders:[{}]}),false);
   assert.equal(maySubmit({...input,trades:[{}]}),false);
@@ -81,13 +81,13 @@ test('Bot runs through real adapter shape, submits once and reconciles next tick
     const transport=async(url,opts)=>{
       let data;
       if(url.pathname==='/v3/accounts') data={accounts:[{id:'101-001-1234567-001'}]};
-      else if(url.pathname.endsWith('/summary')) data={account:{NAV:'10000',marginAvailable:'10000'}};
-      else if(url.pathname.endsWith('/instruments')) data={instruments:[{name:'EUR_USD',minimumTradeSize:'1',displayPrecision:5}]};
+      else if(url.pathname.endsWith('/summary')) data={account:{NAV:'10000',marginAvailable:'10000',currency:'USD'}};
+      else if(url.pathname.endsWith('/instruments')) data={instruments:[{name:'EUR_USD',minimumTradeSize:'1',displayPrecision:5,maximumOrderUnits:'1000000',maximumPositionSize:'0',marginRate:'0.05'}]};
       else if(url.pathname.endsWith('/candles')) data={candles:bars.map(b=>({time:new Date(b.time).toISOString(),complete:true,mid:{o:String(b.open),h:String(b.high),l:String(b.low),c:String(b.close)}}))};
       else if(url.pathname.endsWith('/pendingOrders')) data={orders:[]};
       else if(url.pathname.endsWith('/openTrades')) data={trades:[]};
       else if(url.pathname.endsWith('/transactions')) data={pages:[]};
-      else if(url.pathname.endsWith('/pricing')) data={prices:[quote]};
+      else if(url.pathname.endsWith('/pricing')) data={prices:[quote],homeConversions:[{currency:'EUR',positionValue:'1.102'}]};
       else if(url.pathname.endsWith('/orders')&&opts.method==='POST') {posts++;data={orderCreateTransaction:{id:'123'}};tx.push(JSON.parse(opts.body));}
       else throw Error('Unexpected endpoint');
       return {ok:true,json:async()=>data};
@@ -95,7 +95,7 @@ test('Bot runs through real adapter shape, submits once and reconciles next tick
     const bot=createBot({OANDA_DEMO_TOKEN:'fixture-only'},transport);
     await bot.tick();assert.equal(posts,0);
     clock=now;bars=fixture();await bot.tick();assert.equal(posts,1);
-    await bot.tick();assert.equal(posts,1);assert.equal(tx[0].order.units,'1000');
+    await bot.tick();assert.equal(posts,1);assert.equal(tx[0].order.units,'15384');
     assert.equal(bot.status().connected,true);assert.ok(!JSON.stringify(bot.status()).includes('fixture-only'));
   } finally {Date.now=realNow;}
 });
@@ -112,14 +112,14 @@ function scenario(options={}) {
   const transport=async(url,opts)=>{
     requests.push(url.pathname+url.search);let data;
     if(url.pathname==='/v3/accounts')data={accounts:[{id:'101-001-1234567-001'}]};
-    else if(url.pathname.endsWith('/summary'))data={account:{NAV:'10000',marginAvailable:'10000'}};
-    else if(url.pathname.endsWith('/instruments'))data={instruments:[{name:'EUR_USD',minimumTradeSize:'1',displayPrecision:5}]};
+    else if(url.pathname.endsWith('/summary'))data={account:{NAV:'10000',marginAvailable:'10000',currency:'USD'}};
+    else if(url.pathname.endsWith('/instruments'))data={instruments:[{name:'EUR_USD',minimumTradeSize:'1',displayPrecision:5,maximumOrderUnits:'1000000',maximumPositionSize:'0',marginRate:'0.05'}]};
     else if(url.pathname.endsWith('/candles'))data={candles:bars.map(b=>({time:new Date(b.time).toISOString(),complete:true,mid:{o:String(b.open),h:String(b.high),l:String(b.low),c:String(b.close)}}))};
     else if(url.pathname.endsWith('/pendingOrders'))data={orders:options.orders||[]};
     else if(url.pathname.endsWith('/openTrades'))data={trades:options.trades||[]};
     else if(url.pathname.endsWith('/transactions'))data={pages:options.transactions?.length?['https://api-fxpractice.oanda.com/v3/accounts/101-001-1234567-001/transactions/idrange']:[]};
     else if(url.pathname.endsWith('/transactions/idrange'))data={transactions:options.transactions};
-    else if(url.pathname.endsWith('/pricing'))data={prices:[quote]};
+    else if(url.pathname.endsWith('/pricing'))data={prices:[quote],homeConversions:[{currency:'EUR',positionValue:'1.102'}]};
     else if(url.pathname.endsWith('/orders')&&opts.method==='POST'){
       posts++;if(options.ambiguous)throw Error('Network disconnected');
       data={orderCreateTransaction:{id:'123'}};
@@ -208,9 +208,9 @@ test('Technical demo check opens exactly one unit, closes only its own trade, an
     if(path==='/v3/accounts')return {accounts:[{id:'101-001-1234567-001'}]};
     if(path.includes('/trades/@')){if(opened)return {trade:{id:'42',state:closed?'CLOSED':'OPEN',instrument:'EUR_USD',initialUnits:'1',clientExtensions:{id}}};throw Error('OANDA request failed (404).');}
     if(path.includes('/orders/@'))throw Error('OANDA request failed (404).');
-    if(path.endsWith('/summary'))return {account:{NAV:'10000',marginAvailable:'10000'}};
+    if(path.endsWith('/summary'))return {account:{NAV:'10000',marginAvailable:'10000',currency:'USD'}};
     if(path.endsWith('/pendingOrders'))return {orders:[]};if(path.endsWith('/openTrades'))return {trades:[]};
-    if(path.includes('/instruments?'))return {instruments:[{name:'EUR_USD',minimumTradeSize:'1',displayPrecision:5}]};
+    if(path.includes('/instruments?'))return {instruments:[{name:'EUR_USD',minimumTradeSize:'1',displayPrecision:5,maximumOrderUnits:'1000000',maximumPositionSize:'0',marginRate:'0.05'}]};
     if(path.includes('/pricing?'))return {prices:[{...quote,time:new Date().toISOString()}]};
     if(path.endsWith('/orders')&&method==='POST'){assert.equal(body.order.units,'1');assert.ok(body.order.stopLossOnFill);opened=true;return {orderFillTransaction:{tradeOpened:{tradeID:'42'}}};}
     if(path.endsWith('/trades/42/close')&&method==='PUT'){closed=true;return {orderFillTransaction:{}};}
@@ -226,19 +226,19 @@ test('An uncertain trade-close write is never automatically retried',async()=>{
   await assert.rejects(api('/v3/accounts/123/trades/42/clientExtensions','PUT',{}),/Blocked/);
 });
 
-test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.11.1');assert.equal(order.units,'1');});
+test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,null);assert.equal(bot.status().version,'1.12.0');assert.equal(order.units,'1');});
 
 test('Closed strategy results attribute entry and exit costs once and exclude test fills', async()=>{
   const {closedResults}=require('./performance');
   const cache=new Map();
   const trades=[['10','5'],['20','-3']].map(([id,pl],i)=>({
     id,closeTime:new Date(now+i*60000).toISOString(),state:'CLOSED',instrument:'EUR_USD',
-    initialUnits:i?'1000':'-1000',clientExtensions:{tag:'mmb-demo-v1'},
+    initialUnits:i?'15384':'-1000',clientExtensions:{tag:'mmb-demo-v1'},
     closingTransactionIDs:[String(Number(id)+1)],realizedPL:pl,financing:'-0.25'
   }));
   let fills=0;
   const api=async path=>{
-    if(path.includes('/trades?'))return {trades:[...trades,{...trades[0],initialUnits:'1'}]};
+    if(path.includes('/trades?'))return {trades:[...trades,{...trades[0],initialUnits:'1',clientExtensions:{tag:'mmb-technical-check'}}]};
     const n=Number(path.split('/').pop());fills++;
     const leg={tradeID:String(n-n%10)};
     return {transaction:{type:'ORDER_FILL',commission:'0.50',...(n%10?{tradesClosed:[leg]}:{tradeOpened:leg})}};

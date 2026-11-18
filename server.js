@@ -55,6 +55,33 @@ async function history(api,base,now) {
 }
 const DEMO_PAIRS=['EUR_USD','GBP_USD','AUD_USD'];
 const FORWARD_SPREAD_LIMIT=0.10;
+const DEMO_RISK_FRACTION=0.005;
+function sizeDemoEntry(order, account, instrument, conversions, orders, trades) {
+  const [base, quote] = order.instrument.split('_');
+  if (!account?.currency || !Array.isArray(orders) || !Array.isArray(trades)) return 0;
+  const conversion = (currency, field) => currency === account.currency ? 1
+    : Number(conversions?.find(row => row.currency === currency)?.[field]);
+  const stopCost = Math.abs(Number(order.price) - Number(order.stopLossOnFill.price))
+    * conversion(quote, 'accountLoss');
+  const marginRate = Math.max(Number(instrument.marginRate), Number(account.marginRate ?? 0));
+  const unitMargin = marginRate * conversion(base, 'positionValue');
+  const nav = Number(account.NAV);
+  const freeMargin = Number(account.marginAvailable);
+  const maxOrder = Number(instrument.maximumOrderUnits);
+  const maxPosition = Number(instrument.maximumPositionSize);
+  const minOrder = Number(instrument.minimumTradeSize);
+  if (![stopCost, unitMargin, nav, freeMargin, maxOrder, minOrder].every(n => Number.isFinite(n) && n > 0)
+      || !Number.isFinite(maxPosition) || maxPosition < 0) return 0;
+  const direction = Math.sign(Number(order.units));
+  const occupied = [...orders, ...trades]
+    .filter(row => row.instrument === order.instrument)
+    .map(row => Number(row.currentUnits ?? row.units))
+    .filter(units => Math.sign(units) === direction)
+    .reduce((total, units) => total + Math.abs(units), 0);
+  const size = Math.floor(Math.min(nav * DEMO_RISK_FRACTION / stopCost, freeMargin / unitMargin,
+    maxOrder, maxPosition === 0 ? Infinity : maxPosition - occupied));
+  return Number.isSafeInteger(size) && size >= minOrder ? direction * size : 0;
+}
 function capacity(orders,trades,pair,units) {
   const entries = orders.filter(o => !(o.tradeID && ['STOP_LOSS','TAKE_PROFIT','TRAILING_STOP_LOSS','GUARANTEED_STOP_LOSS'].includes(o.type)));
   const active = [...entries,...trades];
@@ -71,7 +98,7 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   return true;
 }
 function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'}),pair='EUR_USD') {
-  let state={version:'1.11.1',scanIntervalSeconds:60,concurrentEntryLimit:null,dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+  let state={version:'1.12.0',scanIntervalSeconds:60,concurrentEntryLimit:null,dailyEntryLimit:null,strategyUnits:null,strategyRiskFraction:DEMO_RISK_FRACTION,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const startedAt=Date.now();
   const extendedSession=env.DEMO_EXTENDED_SESSION==='true';
@@ -144,7 +171,7 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       if(!signal) {state.status=analysis.stage+'.';return;}
       // Re-read broker state/history immediately before submission, never rely on a cached snapshot.
       const [freshAccount,freshOrders,freshTrades,freshHistory]=await Promise.all([api(base+'/summary'),api(base+'/pendingOrders'),api(base+'/openTrades'),history(api,base,now)]);
-      const pricing=await api(base+'/pricing?instruments='+pair);
+      const pricing=await api(base+'/pricing?instruments='+pair+'&includeHomeConversions=true');
       const quote=pricing.prices?.find(p=>p.instrument===pair);
       const checkedOrder=assessOrder(signal,quote,instrument.displayPrecision,Date.now(),{extendedSession});
       const order=checkedOrder.order;
@@ -155,10 +182,14 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
           state.stage='Entry blocked';state.status=`Setup skipped: spread exceeds ${FORWARD_SPREAD_LIMIT*100}% of stop distance.`;return;
         }
       }
-      // Scale strategy demo entries only; execution checks remain one unit.
+      // Size strategy demo entries only; execution checks remain one unit.
       if(order) {
         order.instrument=pair;
-        order.units=String(Math.sign(Number(order.units))*1000);
+        const units=sizeDemoEntry(order,freshAccount.account,instrument,pricing.homeConversions,freshOrders.orders,freshTrades.trades);
+        if(!units) {
+          state.stage='Entry blocked';state.status='Setup skipped: insufficient broker capacity or sizing data.';return;
+        }
+        order.units=String(units);
         order.positionFill='OPEN_ONLY';
         if(pair!=='EUR_USD') {
           order.clientExtensions.id += '-'+pair.split('_')[0];
@@ -170,7 +201,7 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       // Never retry a POST. An uncertain response halts the bot for manual review.
       const response=await api(base+'/orders','POST',{order});
       if(response.orderRejectTransaction || response.orderCancelTransaction || !response.orderCreateTransaction) {state.stage='Broker rejected entry';state.status='Demo order rejected or cancelled by broker.';return;}
-      historyAt=0;state.ordersToday++;state.lastOrder=new Date().toISOString();state.stage='Order submitted';state.status='1,000-unit demo limit order submitted with broker-held stop and target.';
+      historyAt=0;state.ordersToday++;state.lastOrder=new Date().toISOString();state.stage='Order submitted';state.status=Math.abs(Number(order.units)).toLocaleString('en-CA')+'-unit demo limit order submitted with broker-held stop and target.';
     } catch(e) {
       if(e.uncertain) {halted=true;state.trading=false;state.stage='Manual broker review required';state.status='Paused: order outcome uncertain. Review OANDA before restarting.';}
       else {state.connected=false;state.trading=false;state.stage='Connection or data check failed';state.status=e.message;}

@@ -191,7 +191,7 @@ test('Read-only transient failures retry within a bound; authentication failures
 test('Explicit demo-forward policy remains enabled after historical failure; unknown strategies fail closed',()=>{
   const {forwardPolicy}=require('./server');
   const p=forwardPolicy({DEMO_FORWARD_STRATEGY:'trend-breakout-20'},{mode:'paused'});
-  assert.deepEqual(p,{mode:'candidate',id:'trend-pullback',forwardTest:true});
+  assert.deepEqual(p,{mode:'candidate',id:'hourly-trend',forwardTest:true});
   assert.equal(forwardPolicy({DEMO_FORWARD_STRATEGY:'unknown'},{mode:'paused'}).mode,'paused');
   assert.equal(inSession(Date.parse('2026-11-17T15:00:00Z'),true),true);
   assert.equal(inSession(Date.parse('2026-11-21T15:00:00Z'),true),false);
@@ -226,7 +226,7 @@ test('An uncertain trade-close write is never automatically retried',async()=>{
   await assert.rejects(api('/v3/accounts/123/trades/42/clientExtensions','PUT',{}),/Blocked/);
 });
 
-test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.10.2');assert.equal(order.units,'1');});
+test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.11.0');assert.equal(order.units,'1');});
 
 test('Closed strategy results attribute entry and exit costs once and exclude test fills', async()=>{
   const {closedResults}=require('./performance');
@@ -293,4 +293,32 @@ test('Active trend pullback signals on reclaims and continuation',()=>{
     assert.equal(push(82,0.0033).signal.dir,dir);
     assert.equal(push(83,0.0033).signal,null);
   }
+});
+
+test('Hourly trend waits for a complete breakout hour and preserves broker order protection',()=>{
+  const {hourlyTrendScanner}=require('./hourly-trend');
+  const scanner=hourlyTrendScanner();
+  const start=Date.parse('2026-11-16T00:00:00Z');
+  const candle=(hour,minute,close)=>({time:start+(hour*60+minute)*60000,
+    open:close,high:close+.0001,low:close-.0001,close});
+  for(let hour=0;hour<48;hour++) {
+    for(let minute=0;minute<60;minute++) {
+      assert.equal(scanner.push(candle(hour,minute,1.10+hour*.00001)).signal,null);
+    }
+  }
+  for(let minute=0;minute<59;minute++) {
+    assert.equal(scanner.push(candle(48,minute,1.105)).signal,null);
+  }
+  const {signal}=scanner.push(candle(48,59,1.105));
+  assert.equal(signal.dir,1);
+  assert.ok(signal.stop<signal.limit && signal.target>signal.limit);
+  const observed=signal.time+60000;
+  const quote={status:'tradeable',time:new Date(observed).toISOString(),
+    bids:[{price:'1.10499'}],asks:[{price:'1.10501'}]};
+  const {order}=require('./strategy').assessOrder(signal,quote,5,observed,{extendedSession:true});
+  assert.match(order.clientExtensions.id,/^mmb-h1-/);
+  assert.equal(Date.parse(order.gtdTime)-observed,3600000);
+  assert.equal(order.stopLossOnFill.timeInForce,'GTC');
+  assert.equal(order.takeProfitOnFill.timeInForce,'GTC');
+  assert.equal(scanner.push(candle(49,59,1.11)).signal,null);
 });

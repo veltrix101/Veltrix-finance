@@ -191,6 +191,14 @@ async function run(progress) {
       });
       return {instrument,start,end,comparisons};
     }
+    if (current.id === 'hourly-trend') {
+      const cuts = [bars[0].time,bars[Math.floor(bars.length * .6)].time,start,end];
+      result.hourlyTrendReplay = ['Development','Validation','Holdout'].map((name,i) => {
+        const replay = slippage => backtest(bars,cuts[i],cuts[i+1],slippage,
+          () => candidateScanner(current.id),{...options,maxSpreadToRisk:.10});
+        return {name,base:replay(0),stress:replay(.0001)};
+      });
+    }
     const eur=compareSpreads(bars,'EUR_USD');
     result.currentReplay={strategy:current.name,start,end,...eur.comparisons[0]};
     result.spreadFilterReplay={instrument:eur.instrument,start,end,...eur.comparisons[2]};

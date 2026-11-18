@@ -63,9 +63,9 @@ function assessOrder(signal, price, precision=5, now=Date.now(),options={}) {
   // A passive buy limit must be below the ask; a sell limit must be above the bid.
   // Inside-spread limits are valid. Stops must remain beyond the entry and current exit-side quote.
   if(signal.dir===1 ? entry>=ask || stop>=Math.min(entry,bid) : entry<=bid || stop<=Math.max(entry,ask)) return {reason:'Entry already crossed or stop invalid'};
-  const expires=signal.time+11*60000;
+  const expires=signal.time+((signal.entryMinutes??10)+1)*60000;
   if(expires<=now) return {reason:'Entry expired'};
-  const id=`mmb-${signal.time}-${signal.dir===1?'L':'S'}`;
+  const id=`${signal.idPrefix??'mmb'}-${signal.time}-${signal.dir===1?'L':'S'}`;
   return {reason:null,order:{type:'LIMIT',instrument:'EUR_USD',units:String(signal.dir),price:entry.toFixed(precision),
     timeInForce:'GTD',gtdTime:new Date(expires).toISOString(),positionFill:'DEFAULT',
     clientExtensions:{id,tag:'mmb-demo-v1'},tradeClientExtensions:{id:`${id}-trade`,tag:'mmb-demo-v1'},

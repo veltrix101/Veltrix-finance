@@ -71,7 +71,7 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   return true;
 }
 function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'}),pair='EUR_USD') {
-  let state={version:'1.10.2',scanIntervalSeconds:60,concurrentEntryLimit:null,dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+  let state={version:'1.11.0',scanIntervalSeconds:60,concurrentEntryLimit:null,dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const startedAt=Date.now();
   const extendedSession=env.DEMO_EXTENDED_SESSION==='true';

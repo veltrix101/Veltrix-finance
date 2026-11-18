@@ -1,6 +1,7 @@
 'use strict';
 // Three fixed candidates, not an open-ended parameter search.
 const {inSession}=require('./strategy');
+const {STRATEGY,hourlyTrendScanner}=require('./hourly-trend');
 const CANDIDATES=[
   {id:'trend-breakout-20',name:'20-minute trend breakout',kind:'breakout',lookback:20,stopATR:4,targetATR:8},
   {id:'trend-breakout-60',name:'60-minute trend breakout',kind:'breakout',lookback:60,stopATR:4,targetATR:8},
@@ -9,14 +10,16 @@ const CANDIDATES=[
 const PULLBACK={id:'trend-pullback',name:'Active trend pullback',kind:'pullback',lookback:20,stopATR:4,targetATR:8};
 
 function getCandidate(id){
+  if(id===STRATEGY.id)return STRATEGY;
   return id===PULLBACK.id?PULLBACK:CANDIDATES.find(candidate=>candidate.id===id);
 }
 
 function resolveForwardStrategy(id){
-  return getCandidate(id==='trend-breakout-20'?PULLBACK.id:id);
+  return getCandidate(['trend-breakout-20',PULLBACK.id].includes(id)?STRATEGY.id:id);
 }
 
 function candidateScanner(id,options={}){
+  if(id===STRATEGY.id)return hourlyTrendScanner();
   const cfg=getCandidate(id);if(!cfg)throw Error('Unknown research strategy');
   const prior=[];let previousTime=null,cooldown=0,fast=null,slow=null;
   return {push(b){

@@ -53,10 +53,12 @@ async function history(api,base,now) {
   }
   return transactions.filter(t=>['LIMIT_ORDER','MARKET_ORDER'].includes(t.type) && [TAG,'mmb-technical-check'].includes(t.clientExtensions?.tag));
 }
+const DEMO_PAIRS=['EUR_USD','GBP_USD','AUD_USD'];
+const FORWARD_SPREAD_LIMIT=0.10;
 function capacity(orders,trades,pair,units) {
   const entries = orders.filter(o => !(o.tradeID && ['STOP_LOSS','TAKE_PROFIT','TRAILING_STOP_LOSS','GUARANTEED_STOP_LOSS'].includes(o.type)));
   const active = [...entries,...trades];
-  if (active.some(x => !['EUR_USD','GBP_USD'].includes(x.instrument) || x.clientExtensions?.tag !== TAG)) return false;
+  if (active.some(x => !DEMO_PAIRS.includes(x.instrument) || x.clientExtensions?.tag !== TAG)) return false;
   const same = active.filter(x => x.instrument === pair);
   return same.every(x => units == null || Math.sign(Number(x.currentUnits ?? x.units)) === Math.sign(Number(units)));
 }
@@ -137,16 +139,24 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       if(!signal) {state.status=analysis.stage+'.';return;}
       // Re-read broker state/history immediately before submission, never rely on a cached snapshot.
       const [freshAccount,freshOrders,freshTrades,freshHistory,pricing]=await Promise.all([api(base+'/summary'),api(base+'/pendingOrders'),api(base+'/openTrades'),history(api,base,now),api(base+'/pricing?instruments='+pair)]);
-      const checkedOrder=assessOrder(signal,pricing.prices?.find(p=>p.instrument===pair),instrument.displayPrecision,Date.now(),{extendedSession});
+      const quote=pricing.prices?.find(p=>p.instrument===pair);
+      const checkedOrder=assessOrder(signal,quote,instrument.displayPrecision,Date.now(),{extendedSession});
       const order=checkedOrder.order;
+      if(order && policy.forwardTest){
+        const spread=Number(quote.asks[0].price)-Number(quote.bids[0].price);
+        const risk=Math.abs(Number(order.price)-Number(order.stopLossOnFill.price));
+        if(spread>risk*FORWARD_SPREAD_LIMIT+1e-12){
+          state.stage='Entry blocked';state.status='Setup skipped: spread exceeds 10% of stop distance.';return;
+        }
+      }
       // Scale strategy demo entries only; execution checks remain one unit.
       if(order) {
         order.instrument=pair;
         order.units=String(Math.sign(Number(order.units))*1000);
         order.positionFill='OPEN_ONLY';
         if(pair!=='EUR_USD') {
-          order.clientExtensions.id += '-GBP';
-          order.tradeClientExtensions.id += '-GBP';
+          order.clientExtensions.id += '-'+pair.split('_')[0];
+          order.tradeClientExtensions.id += '-'+pair.split('_')[0];
         }
       }
       if(!maySubmit({account:freshAccount.account,orders:freshOrders.orders,trades:freshTrades.trades,transactions:freshHistory,order,now:Date.now()})) {state.stage='Entry blocked';state.status='Setup skipped: '+(checkedOrder.reason||'broker entry limits failed')+'.';return;}
@@ -204,7 +214,7 @@ function serve(bot) {
   });
 }
 function createPortfolio(env,transport,policy) {
-  const pairs=['EUR_USD','GBP_USD'];
+  const pairs=DEMO_PAIRS;
   const bots=pairs.map(pair=>createBot(env,transport,policy,pair));
   let busy=false,stopped=false;
   return {
@@ -223,7 +233,7 @@ function createPortfolio(env,transport,policy) {
       const rows=bots.map(bot=>bot.status());
       const latest=[...rows].sort((a,b)=>String(b.lastCheck||'').localeCompare(String(a.lastCheck||'')))[0];
       const alert=rows.find(r=>r.stage==='Manual broker review required') || rows.find(r=>!r.connected);
-      return {...rows[0],connected:rows.every(r=>r.connected),trading:!alert && rows.some(r=>r.trading),
+      return {...rows[0],forwardSpreadLimit:FORWARD_SPREAD_LIMIT,connected:rows.every(r=>r.connected),trading:!alert && rows.some(r=>r.trading),
         pendingOrders:latest.pendingOrders,openTrades:latest.openTrades,ordersToday:latest.ordersToday,
         lastOrder:rows.map(r=>r.lastOrder).filter(Boolean).sort().at(-1)||null,
         status:alert?.status || rows.map((r,i)=>pairs[i].replace('_','/')+' · '+r.status).join(' | '),

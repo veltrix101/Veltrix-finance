@@ -6,12 +6,23 @@ const CANDIDATES=[
   {id:'trend-breakout-60',name:'60-minute trend breakout',kind:'breakout',lookback:60,stopATR:4,targetATR:8},
   {id:'range-reversion-20',name:'20-minute range reversion',kind:'reversion',lookback:20,stopATR:2,targetATR:4}
 ];
+const PULLBACK={id:'trend-pullback',name:'Active trend pullback',kind:'pullback',lookback:20,stopATR:4,targetATR:8};
+
+function getCandidate(id){
+  return id===PULLBACK.id?PULLBACK:CANDIDATES.find(candidate=>candidate.id===id);
+}
+
+function resolveForwardStrategy(id){
+  return getCandidate(id==='trend-breakout-20'?PULLBACK.id:id);
+}
+
 function candidateScanner(id,options={}){
-  const cfg=CANDIDATES.find(c=>c.id===id);if(!cfg)throw Error('Unknown research strategy');
+  const cfg=getCandidate(id);if(!cfg)throw Error('Unknown research strategy');
   const prior=[];let previousTime=null,cooldown=0,fast=null,slow=null;
   return {push(b){
     if(previousTime!==null&&b.time-previousTime!==60000){prior.length=0;fast=null;slow=null;cooldown=0;}
     previousTime=b.time;
+    const previousFast=fast;
     fast=fast===null?b.close:fast+(b.close-fast)*2/21;
     slow=slow===null?b.close:slow+(b.close-slow)*2/61;
     let signal=null,stage='Building indicator history';
@@ -28,6 +39,11 @@ function candidateScanner(id,options={}){
           if(b.close>Math.max(...recent.map(v=>v.high))&&fast>slow)dir=1;
           else if(b.close<Math.min(...recent.map(v=>v.low))&&fast<slow)dir=-1;
           stage='Waiting for a trend-aligned range breakout';
+        }else if(cfg.kind==='pullback'){
+          const previousClose=prior.at(-1).close;
+          if(fast>slow && b.close>fast && (previousClose<=previousFast || b.close>previousClose))dir=1;
+          else if(fast<slow && b.close<fast && (previousClose>=previousFast || b.close<previousClose))dir=-1;
+          stage='Waiting for a pullback reclaim or trend continuation';
         }else{
           const mean=recent.reduce((a,v)=>a+v.close,0)/recent.length;
           const sd=Math.sqrt(recent.reduce((a,v)=>a+(v.close-mean)**2,0)/recent.length);
@@ -36,8 +52,11 @@ function candidateScanner(id,options={}){
           target=mean;stage='Waiting for a range extreme and reversal candle';
         }
         if(dir&&atr>0){
-          const limit=b.close-dir*atr*.25,stop=limit-dir*atr*cfg.stopATR;
-          const take=target??limit+dir*atr*cfg.targetATR;
+          const limit=b.close-dir*atr*.25;
+          // Both supported pairs quote in USD. The pullback uses a ten-pip minimum stop distance.
+          const risk=Math.max(atr*cfg.stopATR,cfg.kind==='pullback'?0.001:0);
+          const stop=limit-dir*risk;
+          const take=target??limit+dir*risk*(cfg.targetATR/cfg.stopATR);
           if(dir*(take-limit)>0){signal={dir,time:b.time,limit,stop,target:take};cooldown=10;stage='Candidate setup confirmed';}
         }
       }
@@ -84,5 +103,5 @@ function compareCandidates(bars,backtest){
     demoCandidate:passed?chosen.id:null,
     verdict:passed?'A replacement passed the initial retrospective gates. Eligible only for one-unit forward demo testing; no real-money approval.':'No replacement passed the prespecified gates. New demo entries are paused; broker monitoring continues.'};
 }
-module.exports={CANDIDATES,candidateScanner,analyzeCandidate,blockConfidence,passesDevelopment,passesHoldout,compareCandidates};
+module.exports={CANDIDATES,getCandidate,resolveForwardStrategy,candidateScanner,analyzeCandidate,blockConfidence,passesDevelopment,passesHoldout,compareCandidates};
 

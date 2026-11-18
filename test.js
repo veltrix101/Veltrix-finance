@@ -162,7 +162,7 @@ test('Incremental polling preserves signal and stable status; stop prevents furt
 test('Invalid margin and marginal reward after spread fail closed; diagnostics identify sweep',()=>{
   assert.equal(maySubmit({account:{NAV:'10000'},orders:[],trades:[],transactions:[],order,now}),false);
   const smallRisk={...signal,limit:1.102,stop:1.101,target:1.1037};
-  const p={...quote,bids:[{price:'1.1040'}],asks:[{price:'1.1041'}]};
+  const p={...quote,bids:[{price:'1.10.1'}],asks:[{price:'1.1041'}]};
   assert.equal(orderFor(smallRisk,p,5,now),null);
   assert.equal(analyze([]).stage,'Building market history');
   assert.match(analyze(fixture().slice(0,-1)).stage,/Sweep detected/);
@@ -191,7 +191,7 @@ test('Read-only transient failures retry within a bound; authentication failures
 test('Explicit demo-forward policy remains enabled after historical failure; unknown strategies fail closed',()=>{
   const {forwardPolicy}=require('./server');
   const p=forwardPolicy({DEMO_FORWARD_STRATEGY:'trend-breakout-20'},{mode:'paused'});
-  assert.equal(p.mode,'candidate');assert.equal(p.forwardTest,true);
+  assert.deepEqual(p,{mode:'candidate',id:'trend-pullback',forwardTest:true});
   assert.equal(forwardPolicy({DEMO_FORWARD_STRATEGY:'unknown'},{mode:'paused'}).mode,'paused');
   assert.equal(inSession(Date.parse('2026-11-17T15:00:00Z'),true),true);
   assert.equal(inSession(Date.parse('2026-11-21T15:00:00Z'),true),false);
@@ -226,7 +226,7 @@ test('An uncertain trade-close write is never automatically retried',async()=>{
   await assert.rejects(api('/v3/accounts/123/trades/42/clientExtensions','PUT',{}),/Blocked/);
 });
 
-test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.9.1');assert.equal(order.units,'1');});
+test('Demo strategy sizing is visible without changing one-unit order builder or technical checks',()=>{const bot=createBot({});assert.equal(bot.status().strategyUnits,1000);assert.equal(bot.status().version,'1.10.1');assert.equal(order.units,'1');});
 
 test('Closed strategy results attribute entry and exit costs once and exclude test fills', async()=>{
   const {closedResults}=require('./performance');
@@ -272,4 +272,25 @@ test('Multi-pair admission allows more than five positions and rejects opposing 
   assert.equal(check([eur,gbp,gbp]),true);
   assert.equal(check([eur],[],'-1000'),false);
   assert.equal(check([eur,eur,gbp,gbp],[{...eur,type:'LIMIT',units:'1000'}]),true);
+});
+
+test('Active trend pullback signals on reclaims and continuation',()=>{
+  const {candidateScanner}=require('./candidates');
+  const start=Date.parse('2026-11-17T12:00:00Z');
+  for(const dir of [1,-1]){
+    const scanner=candidateScanner('trend-pullback',{extendedSession:true,everyMinute:true});
+    const price=offset=>1.1+dir*offset;
+    function push(i,offset){
+      const close=price(offset);
+      return scanner.push({time:start+i*60000,open:close,close,high:close+0.00002,low:close-0.00002});
+    }
+    for(let i=0;i<80;i++)assert.equal(push(i,i*0.00004).signal,null);
+    assert.equal(push(80,0.0026).signal,null);
+    const {signal}=push(81,0.0030);
+    assert.equal(signal.dir,dir);
+    assert.ok(Math.abs(dir*(signal.limit-signal.stop)-0.001)<1e-9);
+    assert.ok(Math.abs(dir*(signal.target-signal.limit)-0.002)<1e-9);
+    assert.equal(push(82,0.0033).signal.dir,dir);
+    assert.equal(push(83,0.0033).signal,null);
+  }
 });

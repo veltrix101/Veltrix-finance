@@ -169,8 +169,8 @@ async function run(progress) {
   progress({phase:'Checking probability forecast and broker execution history',progress:99});
   const result=study(bars);
   result.redesign=redesign;
-  const {CANDIDATES, candidateScanner} = require('./candidates');
-  const current = CANDIDATES.find(c => c.id === process.env.DEMO_FORWARD_STRATEGY);
+  const {resolveForwardStrategy, candidateScanner} = require('./candidates');
+  const current = resolveForwardStrategy(process.env.DEMO_FORWARD_STRATEGY);
   if (current) {
     const options = {extendedSession:process.env.DEMO_EXTENDED_SESSION === 'true', dailyLimit:Infinity, everyMinute:true};
     const start = bars[Math.floor(bars.length * 0.8)].time;

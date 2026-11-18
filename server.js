@@ -69,7 +69,7 @@ function maySubmit({account,orders,trades,transactions,order,now}) {
   return true;
 }
 function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'original'}),pair='EUR_USD') {
-  let state={version:'1.9.1',scanIntervalSeconds:60,concurrentEntryLimit:null,dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
+  let state={version:'1.10.1',scanIntervalSeconds:60,concurrentEntryLimit:null,dailyEntryLimit:null,strategyUnits:1000,mode:'DEMO ONLY',status:'Token not configured',connected:false,trading:false,lastCheck:null,lastCandle:null,lastOrder:null,pendingOrders:0,openTrades:0,ordersToday:0,sessionOpen:false,entryWindow:'Weekdays 08:00–11:00 Europe/London',stage:'Waiting for connection'};
   const token=(env.OANDA_DEMO_TOKEN||'').trim(),api=createClient(token,transport);
   const startedAt=Date.now();
   const extendedSession=env.DEMO_EXTENDED_SESSION==='true';
@@ -123,7 +123,7 @@ function createBot(env=process.env,transport=fetch,readPolicy=()=>({mode:'origin
       const policy=readPolicy();
       state.forwardTest=Boolean(policy.forwardTest);
       state.validationStatus=policy.forwardTest?'Unvalidated demo forward test':'Historical validation policy';
-      state.strategy=policy.mode==='candidate'?require('./candidates').CANDIDATES.find(c=>c.id===policy.id)?.name||policy.id:policy.mode==='original'?'Original sweep rules':'Research only — new entries paused';
+      state.strategy=policy.mode==='candidate'?require('./candidates').getCandidate(policy.id)?.name||policy.id:policy.mode==='original'?'Original sweep rules':'Research only — new entries paused';
       if(!['candidate','original'].includes(policy.mode)){evaluated=last.time;state.stage='Strategy validation';state.status=policy.message||'New entries paused until a strategy passes validation.';return;}
       if(last.time+60000 < startedAt) {evaluated=last.time;state.stage='Scanning';state.status='Connected. Scanning each new one-minute candle.';return;}
       if(!inSession(now,extendedSession)) {evaluated=last.time;state.stage='Outside entry window';state.status=extendedSession?'Running. Waiting for weekday forex trading hours.':'Running. New entries wait for weekdays 08:00–11:00 London time.';return;}
@@ -173,7 +173,11 @@ function forwardPolicy(env,fallback){
   if(executionCheck.requiresReview)return {mode:'paused',message:'Broker execution check requires review. New entries paused.'};
   if(executionCheck.status==='In progress')return {mode:'research',message:'Verifying the demo order and close path.'};
   const id=env.DEMO_FORWARD_STRATEGY;
-  if(id){if(!require('./candidates').CANDIDATES.some(c=>c.id===id))return {mode:'paused',message:'Unknown demo test strategy; check configuration.'};return {mode:'candidate',id,forwardTest:true};}
+  if(id){
+    const strategy=require('./candidates').resolveForwardStrategy(id);
+    if(!strategy)return {mode:'paused',message:'Unknown demo test strategy; check configuration.'};
+    return {mode:'candidate',id:strategy.id,forwardTest:true};
+  }
   return fallback;
 }
 let livePolicy={mode:'research',message:'Comparing strategy candidates. New entries are paused during validation.'};

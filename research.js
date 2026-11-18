@@ -17,12 +17,12 @@ function parseHistory(candles) {
     return {...b,...b.mid};
   });
 }
-async function download(get,account,now,progress=()=>{}) {
-  const end=Math.floor(now/60000)*60000,start=Math.floor((end-180*DAY)/DAY)*DAY,rows=new Map();
+async function download(get,account,now,progress=()=>{},instrument='EUR_USD',days=180) {
+  const end=Math.floor(now/60000)*60000,start=Math.floor((end-days*DAY)/DAY)*DAY,rows=new Map();
   for(let from=start;from<end;from+=3*DAY){
     const to=Math.min(from+3*DAY,end);
     const query=new URLSearchParams({granularity:'M1',price:'MBA',from:new Date(from).toISOString(),to:new Date(to).toISOString()});
-    const d=await get(`/v3/accounts/${account}/instruments/EUR_USD/candles?${query}`);
+    const d=await get(`/v3/accounts/${account}/instruments/${instrument}/candles?${query}`);
     if(!Array.isArray(d.candles))throw Error('Incomplete historical data response');
     for(const b of parseHistory(d.candles))if(b.time>=start&&b.time<end)rows.set(b.time,b);
     progress({phase:'Downloading OANDA history',progress:Math.min(95,Math.round((to-start)/(end-start)*100))});
@@ -183,14 +183,28 @@ async function run(progress) {
     const options = {extendedSession:process.env.DEMO_EXTENDED_SESSION === 'true', dailyLimit:Infinity, everyMinute:true};
     const start = bars[Math.floor(bars.length * 0.8)].time;
     const end = bars.at(-1).time + 60000;
-    const replay = (slip, replayOptions=options) => backtest(bars, start, end, slip, () => candidateScanner(current.id, options), replayOptions);
-    result.currentReplay = {strategy:current.name, start, end, base:replay(0), stress:replay(0.0001)};
-    const maxSpreadToRisk=0.10;
-    const tighter={...options,maxSpreadToRisk};
-    result.spreadFilterReplay={
-      instrument:'EUR_USD', maxSpreadToRisk, start, end,
-      base:replay(0,tighter), stress:replay(0.0001,tighter)
-    };
+    function compareSpreads(history,instrument){
+      const comparisons=[0.20,0.15,0.10].map(maxSpreadToRisk=>{
+        const replayOptions=maxSpreadToRisk===0.20?options:{...options,maxSpreadToRisk};
+        const replay=slippage=>backtest(history,start,end,slippage,()=>candidateScanner(current.id,options),replayOptions);
+        return {maxSpreadToRisk,base:replay(0),stress:replay(0.0001)};
+      });
+      return {instrument,start,end,comparisons};
+    }
+    const eur=compareSpreads(bars,'EUR_USD');
+    result.currentReplay={strategy:current.name,start,end,...eur.comparisons[0]};
+    result.spreadFilterReplay={instrument:eur.instrument,start,end,...eur.comparisons[2]};
+    result.rangeReplay=[eur];
+    for(const instrument of ['GBP_USD','AUD_USD','USD_CAD']){
+      progress({phase:'Replaying '+instrument+' at three spread limits',progress:99});
+      try{
+        const days=Math.ceil((end-start)/DAY)+3;
+        const history=await download(path=>api(path),account,end,undefined,instrument,days);
+        result.rangeReplay.push(compareSpreads(history,instrument));
+      }catch(error){
+        result.rangeReplay.push({instrument,error:String(error.message).slice(0,160)});
+      }
+    }
   }
   result.execution=await executionEvidence(path=>api(path),account,Date.now());
   return result;
